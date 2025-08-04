@@ -57,7 +57,7 @@ function App() {
           <div className="max-w-4xl mx-auto p-6 space-y-6">
             {/* File Upload Section */}
             <div className="bg-card border rounded-lg p-6">
-              <h2 className="text-lg font-medium mb-4">File Upload(File should be less than 35 mb)</h2>
+              <h2 className="text-lg font-medium mb-4">File Upload</h2>
               <FileUpload 
                 agent={selectedAgent} 
                 onResponse={handleResponse} 
