@@ -1,12 +1,15 @@
 import { useState, useCallback } from 'react'
 import { Upload, File, X, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button.jsx'
+import { CloudCog } from 'lucide-react'
+import { useRef } from 'react'
 
 export default function FileUpload({ agent, onResponse }) {
   const [isDragOver, setIsDragOver] = useState(false)
   const [selectedFile, setSelectedFile] = useState(null)
   const [isUploading, setIsUploading] = useState(false)
   const [error, setError] = useState(null)
+  const fileInputRef = useRef(null)
 
   const handleDragOver = useCallback((e) => {
     e.preventDefault()
@@ -21,7 +24,7 @@ export default function FileUpload({ agent, onResponse }) {
   const handleDrop = useCallback((e) => {
     e.preventDefault()
     setIsDragOver(false)
-    
+
     const files = Array.from(e.dataTransfer.files)
     if (files.length > 0) {
       setSelectedFile(files[0])
@@ -29,18 +32,20 @@ export default function FileUpload({ agent, onResponse }) {
     }
   }, [])
 
-  const handleFileSelect = useCallback((e) => {
+  const handleFileSelect = (e) => {
     const files = Array.from(e.target.files)
     if (files.length > 0) {
       setSelectedFile(files[0])
       setError(null)
     }
-  }, [])
+  }
 
-  const removeFile = useCallback(() => {
+  console.log("selectedFiles", selectedFile)
+
+  const removeFile = () => {
     setSelectedFile(null)
     setError(null)
-  }, [])
+  }
 
   const uploadFile = async () => {
     if (!selectedFile || !agent) return
@@ -70,14 +75,19 @@ export default function FileUpload({ agent, onResponse }) {
         result = text
       }
       onResponse(result)
-      
+
       // Clear the file after successful upload
       setSelectedFile(null)
+      setIsUploading(false)
+      setError(null)
     } catch (err) {
       setError(err.message || 'Failed to upload file')
     } finally {
       setIsUploading(false)
       setSelectedFile(null)
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ''
+      }
     }
   }
 
@@ -108,32 +118,31 @@ export default function FileUpload({ agent, onResponse }) {
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
-        className={`border-2 border-dashed rounded-lg p-8 text-center transition-all duration-200 ${
-          isDragOver
+        className={`border-2 border-dashed rounded-lg p-8 text-center transition-all duration-200 ${isDragOver
             ? 'border-primary bg-primary/5'
             : 'border-border hover:border-primary/50'
-        }`}
+          }`}
       >
-        <Upload className={`w-12 h-12 mx-auto mb-4 ${
-          isDragOver ? 'text-primary' : 'text-muted-foreground'
-        }`} />
-        
+        <Upload className={`w-12 h-12 mx-auto mb-4 ${isDragOver ? 'text-primary' : 'text-muted-foreground'
+          }`} />
+
         <h3 className="text-lg font-medium mb-2">
           {isDragOver ? 'Drop your file here' : 'Upload a file'}
         </h3>
-        
+
         <p className="text-muted-foreground mb-4">
           Drag and drop your file here, or click to browse
         </p>
-        
+
         <input
           type="file"
+          ref={fileInputRef}
           onChange={handleFileSelect}
           className="hidden"
           id="file-input"
           accept=".pdf"
         />
-        
+
         <Button asChild variant="outline">
           <label htmlFor="file-input" className="cursor-pointer">
             Browse Files
@@ -154,7 +163,7 @@ export default function FileUpload({ agent, onResponse }) {
                 </p>
               </div>
             </div>
-            
+
             <Button
               variant="ghost"
               size="sm"
@@ -164,7 +173,7 @@ export default function FileUpload({ agent, onResponse }) {
               <X className="w-4 h-4" />
             </Button>
           </div>
-          
+
           <div className="mt-4 flex gap-2">
             <Button
               onClick={uploadFile}
