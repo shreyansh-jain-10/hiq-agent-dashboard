@@ -8,14 +8,14 @@ const agents = [
     description: 'Analyzes and validates document quality(Check for report validity and three mandatory sections)',
     icon: FileText,
     webhook: 'https://gluagents.xyz/webhook/e91d733a-4fe5-41cf-a024-9b2ec3a6f914'
-  },
-  {
-    id: 'sample-adequacy-checker',
-    name: 'Sample Adequacy Checker',
-    description: 'Checks if samples per domain are adequate or not.',
-    icon: FileText,
-    webhook: 'https://gluagents.xyz/webhook/c08346a1-e41e-49b7-a64a-35570baf409d'
   }
+  // {
+  //   id: 'sample-adequacy-checker',
+  //   name: 'Sample Adequacy Checker',
+  //   description: 'Checks if samples per domain are adequate or not.',
+  //   icon: FileText,
+  //   webhook: 'https://gluagents.xyz/webhook/c08346a1-e41e-49b7-a64a-35570baf409d'
+  // }
 ]
 
 export default function Sidebar({ selectedAgent, onAgentSelect }) {
