@@ -77,6 +77,7 @@ export default function FileUpload({ agent, onResponse }) {
       setError(err.message || 'Failed to upload file')
     } finally {
       setIsUploading(false)
+      setSelectedFile(null)
     }
   }
 
@@ -130,7 +131,7 @@ export default function FileUpload({ agent, onResponse }) {
           onChange={handleFileSelect}
           className="hidden"
           id="file-input"
-          accept="*/*"
+          accept=".pdf"
         />
         
         <Button asChild variant="outline">
@@ -168,7 +169,7 @@ export default function FileUpload({ agent, onResponse }) {
             <Button
               onClick={uploadFile}
               disabled={isUploading}
-              className="flex-1"
+              className="flex-1 cursor-pointer"
             >
               {isUploading ? (
                 <>
