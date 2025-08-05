@@ -8,6 +8,13 @@ const agents = [
     description: 'Analyzes and validates document quality(Check for report validity and three mandatory sections)',
     icon: FileText,
     webhook: 'https://gluagents.xyz/webhook/e91d733a-4fe5-41cf-a024-9b2ec3a6f914'
+  },
+  {
+    id: 'sample-adequacy-checker',
+    name: 'Sample Adequacy Checker',
+    description: 'Checks if samples per domain are adequate or not.',
+    icon: FileText,
+    webhook: 'https://gluagents.xyz/webhook/c08346a1-e41e-49b7-a64a-35570baf409d'
   }
 ]
 
@@ -34,21 +41,19 @@ export default function Sidebar({ selectedAgent, onAgentSelect }) {
           {agents.map((agent) => {
             const Icon = agent.icon
             const isSelected = selectedAgent?.id === agent.id
-            
+
             return (
               <button
                 key={agent.id}
                 onClick={() => onAgentSelect(agent)}
-                className={`w-full p-3 rounded-lg text-left transition-all duration-200 group ${
-                  isSelected
+                className={`w-full p-3 rounded-lg text-left transition-all duration-200 group ${isSelected
                     ? 'bg-sidebar-accent text-sidebar-accent-foreground shadow-sm'
                     : 'hover:bg-sidebar-accent/50 text-sidebar-foreground'
-                }`}
+                  }`}
               >
                 <div className="flex items-start gap-3">
-                  <Icon className={`w-5 h-5 mt-0.5 ${
-                    isSelected ? 'text-sidebar-primary' : 'text-sidebar-foreground/60 group-hover:text-sidebar-primary'
-                  }`} />
+                  <Icon className={`w-5 h-5 mt-0.5 ${isSelected ? 'text-sidebar-primary' : 'text-sidebar-foreground/60 group-hover:text-sidebar-primary'
+                    }`} />
                   <div className="flex-1 min-w-0">
                     <h3 className="font-medium text-sm truncate">{agent.name}</h3>
                     <p className="text-xs text-sidebar-foreground/60 mt-1 line-clamp-2">
