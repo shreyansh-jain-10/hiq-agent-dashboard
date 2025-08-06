@@ -53,7 +53,7 @@ const agents = [
     name: '5. EPA Rule Book 📊',
     description: 'Applies EPA Table 1 & 2 classification rules, performs statistical analysis, and determines if domains are GSW, Restricted, or Hazardous waste.',
     icon: FileText,
-    webhook: 'https://gluagents.xyz/webhook-test/306f5aee-9a58-410c-8174-5c11074085d2'
+    webhook: 'https://gluagents.xyz/webhook/306f5aee-9a58-410c-8174-5c11074085d2'
   }
 ]
 
