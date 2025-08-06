@@ -21,25 +21,39 @@ import {
 
 const agents = [
   {
-    id: 'hiq-document-checker',
-    name: '1. HIQ-Document Checker',
-    description: 'Analyzes and validates document quality (Check for report validity and three mandatory sections)',
+    id: 'document-gatekeeper',
+    name: '1. Document Gatekeeper 📋',
+    description: 'Analyzes and Check for report validity and three mandatory sections(Chain of Custody, Certificate Analysis, Site History), and extracts key info like volumes, areas, and consultant name.',
     icon: FileText,
     webhook: 'https://gluagents.xyz/webhook/e91d733a-4fe5-41cf-a024-9b2ec3a6f914'
   },
   {
-    id: 'sample-adequacy-checker',
-    name: '2. Sample Adequacy Checker',
-    description: 'Checks if samples per domain are adequate or not.',
+    id: 'sample-police',
+    name: '2. Sample Police 🔢',
+    description: 'Counts samples, compares them against EPA Sampling Design rules, and determines whether enough samples were taken for the reported waste volume.',
     icon: FileText,
     webhook: 'https://gluagents.xyz/webhook/c08346a1-e41e-49b7-a64a-35570baf409d'
   },
   {
-    id: 'waste-organiser',
-    name: '3 & 4. Waste Organiser & Danger Detector',
-    description: 'Organises waste materials by domains and tell us the material types, exemption status and reason if not exempted.',
+    id: 'waste-organizer',
+    name: '3. Waste Organizer 📦',
+    description: 'Identifies waste domains (e.g., stockpiles, paddocks), groups similar materials, and checks for exemptions like VENM. Returns organized domain summary.',
     icon: FileText,
     webhook: 'https://gluagents.xyz/webhook/141a29f6-00d4-4c60-95f5-e2b924b873dc'
+  },
+  {
+    id: 'danger-detector',
+    name: '4. Danger Detector ⚠️',
+    description: 'Scans domains for hazardous substances like PFAS, asbestos, and Acid Sulphate Soil (PASS), and flags any dangerous materials found.',
+    icon: FileText,
+    webhook: 'https://gluagents.xyz/webhook/c4cd6ede-85e1-42a8-812c-81c325d619d2'
+  },
+  {
+    id: 'epa-rulebook',
+    name: '5. EPA Rule Book 📊',
+    description: 'Applies EPA Table 1 & 2 classification rules, performs statistical analysis, and determines if domains are GSW, Restricted, or Hazardous waste.',
+    icon: FileText,
+    webhook: 'https://gluagents.xyz/webhook-test/306f5aee-9a58-410c-8174-5c11074085d2'
   }
 ]
 
@@ -52,7 +66,7 @@ export default function Sidebar({
   onToggleCollapse
 }) {
   const [searchQuery, setSearchQuery] = useState('')
-  const [favorites, setFavorites] = useState(['hiq-document-checker'])
+  const [favorites, setFavorites] = useState(['document-gatekeeper'])
   const [showUserMenu, setShowUserMenu] = useState(false)
   const [showFilters, setShowFilters] = useState(false)
   const [statusFilter, setStatusFilter] = useState('all')
