@@ -22,21 +22,21 @@ import {
 const agents = [
   {
     id: 'hiq-document-checker',
-    name: 'HIQ-Document Checker',
+    name: '1. HIQ-Document Checker',
     description: 'Analyzes and validates document quality (Check for report validity and three mandatory sections)',
     icon: FileText,
     webhook: 'https://gluagents.xyz/webhook/e91d733a-4fe5-41cf-a024-9b2ec3a6f914'
   },
   {
     id: 'sample-adequacy-checker',
-    name: 'Sample Adequacy Checker',
+    name: '2. Sample Adequacy Checker',
     description: 'Checks if samples per domain are adequate or not.',
     icon: FileText,
     webhook: 'https://gluagents.xyz/webhook/c08346a1-e41e-49b7-a64a-35570baf409d'
   },
   {
     id: 'waste-organiser',
-    name: 'Waste Organiser',
+    name: '3 & 4. Waste Organiser & Danger Detector',
     description: 'Organises waste materials by domains and tell us the material types, exemption status and reason if not exempted.',
     icon: FileText,
     webhook: 'https://gluagents.xyz/webhook/141a29f6-00d4-4c60-95f5-e2b924b873dc'
