@@ -1,0 +1,106 @@
+So we made 6 agents till now.
+We somewhat started from a flowchart diagram that I have uploaded.
+
+Now we want to tie up this 6 agents with proper branching that if this happened what should be done and if not what should.
+We have to arrange all the 6 agents in that way according to project diagram that I have uploaded.
+Guide me with that properly with every small details.
+Try to be specific and perfect.
+Its quite crucial for us.
+I am listing you outputs of all 6 agents.
+1: [
+    {
+        "report_date": {
+            "date": "2024-11-06",
+            "status": "VALID"
+        },
+        "mandatory_sections": {
+            "chain_of_custody": {
+                "found": true,
+                "heading_or_location": "COC Chain of Custody (mentioned in laboratory section and referenced in glossary)"
+            },
+            "certificate_analysis": {
+                "found": true,
+                "heading_or_location": "Certificate of Analysis (Appendix A, Laboratory Report, Page 5 of 6 and multiple mentions throughout laboratory results)"
+            },
+            "site_history": {
+                "found": true,
+                "heading_or_location": "1 Introduction (page 1) and 2 Background & Scope of Work"
+            }
+        },
+        "key_information": {
+            "waste_volumes": "200 m3, ~380 t, larger stockpile@ 120m3, smaller stockpile@ 30m3, elevated ramp area@50m3",
+            "waste_areas": "approx 250m2",
+            "consultant_name": "Dino Parisotto",
+            "all_dates_found": [
+                "2024-11-06",
+                "2024-11-02",
+                "2024-11-01",
+                "2024-10-30",
+                "2024-11-04",
+                "2024-11-05",
+                "2023-01-01"
+            ]
+        }
+    }
+]
+2: [
+    {
+        "deficient_domains": [],
+        "ok_domains": [
+            {
+                "name": "Vegetation Stockpile DSP03 – Stage 3",
+                "volume": 70,
+                "samples_taken": 6,
+                "required_samples": 3,
+                "status": "OK",
+                "shortfall": 0
+            }
+        ],
+        "completed": true,
+        "total_stockpiles": 1,
+        "deficient_count": 0,
+        "ok_count": 1
+    }
+]
+3: [
+    {
+        "name": "Stockpile 7 (SP-7)",
+        "volume": "200 m³",
+        "material_type": "brown/grey clay loam with sand, concrete/brick rubble, sandstone, minor asphalt, and plastic",
+        "exemption": null,
+        "non_exemption_reason": "Contains foreign materials (concrete, bricks, plastic, asphalt); fails VENM/ENM criteria for uncontaminated natural material"
+    }
+]
+4: [
+    {
+        "name": "SP6 (Hydro, nightworks)",
+        "material_type": "brown/grey clay loam with sand, concrete/brick rubble, sandstone, minor asphalt, and plastic",
+        "exemption": null,
+        "non_exemption_reason": "Contains foreign materials (concrete, bricks, plastic, asphalt); fails VENM/ENM criteria for uncontaminated natural material",
+        "danger_flags": [
+            "⚠️ WARNING: PFAS detected below danger threshold (3.2 mg/kg)",
+            "🚨 DANGER: Lead detected at 450 mg/kg (limit: 400 mg/kg)"
+        ]
+    }
+]
+5: [
+    {
+        "name": "Vegetation Stockpile DSP03",
+        "assigned_waste_class": "Special Waste",
+        "reason": "Asbestos detected: Chrysotile and amosite identified in DSP03-FRAG01, DSP03-FRAG02, DSP03-FRAG03 (Eurofins Report 1199728 and narrative)."
+    }
+]
+6: [
+    {
+        "name": "SP3 (compound, Global, compound works)",
+        "recycling_eligible": true,
+        "eligible_category": 4,
+        "reason": "All analytes at or below Category 4 limits; asbestos absent."
+    },
+    {
+        "name": "SP4 (basin, Hancock, basin 2)",
+        "recycling_eligible": true,
+        "eligible_category": 4,
+        "reason": "All analytes at or below Category 4 limits; asbestos absent."
+    }
+]

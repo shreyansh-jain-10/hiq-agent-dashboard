@@ -55,9 +55,22 @@ const agents = [
     description: `Assigns official EPA waste class (General Solid, Restricted, Hazardous, Special/Liquid) for each domain, compares all chemical results to EPA Table 1 & 2 (including PFAS addendum), cites any exceedances, and outputs the strictest class required by regulations. (FOR NOW IT WILL TAKE SOME TIME TO PROCESS[As it is internally calling 3rd and 4th agent first] It will be reduced when we integrate them.)`,
     icon: FileText,
     webhook: 'https://gluagents.xyz/webhook/306f5aee-9a58-410c-8174-5c11074085d2'
-  }
+  },
+  {
+    id: 'recycling-hunter',
+    name: '6. The Recycling Hunter ♻️',
+    description: `Checks if material qualifies for recycling. If eligible, assigns the correct recycling category according to the categorisation table. If not, provides reasons.`,
+    icon: FileText,
+    webhook: 'https://gluagents.xyz/webhook/b8e96366-e881-493c-8508-ebff2b657217'
+  },
+  {
+    id: 'unified-flow',
+    name: 'Unified flow',
+    description: ``,
+    icon: FileText,
+    webhook: 'https://gluagents.xyz/webhook/23145b04-8328-41c1-b417-ef201e806dd7'
+  },
 ]
-
 
 export default function Sidebar({
   selectedAgent,
