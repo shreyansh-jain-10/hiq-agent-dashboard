@@ -21,55 +21,55 @@ import {
 
 
 const agents = [
-  {
-    id: 'document-gatekeeper',
-    name: '1. Document Gatekeeper 📋',
-    description: `Analyzes and Check for report validity and three mandatory sections(Chain of Custody, Certificate Analysis, Site History), and extracts key info like volumes, areas, and consultant name.`,
-    icon: FileText,
-    webhook: 'https://gluagents.xyz/webhook/e91d733a-4fe5-41cf-a024-9b2ec3a6f914'
-  },
-  {
-    id: 'sample-police',
-    name: '2. Sample Police 🔢',
-    description: `Extracts sample counts per domain/stockpile, checks against EPA Table 3/4 and ENM Order sampling rules, and flags any domains needing more samples or missing validation.`,
-    icon: FileText,
-    webhook: 'https://gluagents.xyz/webhook/c08346a1-e41e-49b7-a64a-35570baf409d'
-  },
-  {
-    id: 'waste-organizer',
-    name: '3. Waste Organizer 📦',
-    description: `Identifies all domains/stockpiles, extracts key details (name, volume, material type), checks for exemptions (VENM, ENM) using EPA/ENM Order definitions, ensures all chemical/sampling requirements are met, and flags issues like asbestos or foreign material.`,
-    icon: FileText,
-    webhook: 'https://gluagents.xyz/webhook/141a29f6-00d4-4c60-95f5-e2b924b873dc'
-  },
-  {
-    id: 'danger-detector',
-    name: '4. Danger Detector ⚠️',
-    description: `Scans each domain for hazards: PFAS (latest thresholds), asbestos, clinical waste, dangerous goods, PASS/Acid Sulphate Soil, scheduled chemicals, and all relevant EPA limits. Flags all detected dangers with clear warnings. (FOR NOW IT WILL TAKE SOME TIME TO PROCESS[As it is internally calling 3rd agent first] It will be reduced when we integrate them.)`,
-    icon: FileText,
-    webhook: 'https://gluagents.xyz/webhook/c4cd6ede-85e1-42a8-812c-81c325d619d2'
-  },
-  {
-    id: 'epa-rulebook',
-    name: '5. EPA Rule Book 📊',
-    description: `Assigns official EPA waste class (General Solid, Restricted, Hazardous, Special/Liquid) for each domain, compares all chemical results to EPA Table 1 & 2 (including PFAS addendum), cites any exceedances, and outputs the strictest class required by regulations. (FOR NOW IT WILL TAKE SOME TIME TO PROCESS[As it is internally calling 3rd and 4th agent first] It will be reduced when we integrate them.)`,
-    icon: FileText,
-    webhook: 'https://gluagents.xyz/webhook/306f5aee-9a58-410c-8174-5c11074085d2'
-  },
-  {
-    id: 'recycling-hunter',
-    name: '6. The Recycling Hunter ♻️',
-    description: `Checks if material qualifies for recycling. If eligible, assigns the correct recycling category according to the categorisation table. If not, provides reasons.`,
-    icon: FileText,
-    webhook: 'https://gluagents.xyz/webhook/b8e96366-e881-493c-8508-ebff2b657217'
-  },
+  // {
+  //   id: 'document-gatekeeper',
+  //   name: '1. Document Gatekeeper 📋',
+  //   description: `Analyzes and Check for report validity and three mandatory sections(Chain of Custody, Certificate Analysis, Site History), and extracts key info like volumes, areas, and consultant name.`,
+  //   icon: FileText,
+  //   webhook: 'https://gluagents.xyz/webhook/e91d733a-4fe5-41cf-a024-9b2ec3a6f914'
+  // },
+  // {
+  //   id: 'sample-police',
+  //   name: '2. Sample Police 🔢',
+  //   description: `Extracts sample counts per domain/stockpile, checks against EPA Table 3/4 and ENM Order sampling rules, and flags any domains needing more samples or missing validation.`,
+  //   icon: FileText,
+  //   webhook: 'https://gluagents.xyz/webhook/c08346a1-e41e-49b7-a64a-35570baf409d'
+  // },
+  // {
+  //   id: 'waste-organizer',
+  //   name: '3. Waste Organizer 📦',
+  //   description: `Identifies all domains/stockpiles, extracts key details (name, volume, material type), checks for exemptions (VENM, ENM) using EPA/ENM Order definitions, ensures all chemical/sampling requirements are met, and flags issues like asbestos or foreign material.`,
+  //   icon: FileText,
+  //   webhook: 'https://gluagents.xyz/webhook/141a29f6-00d4-4c60-95f5-e2b924b873dc'
+  // },
+  // {
+  //   id: 'danger-detector',
+  //   name: '4. Danger Detector ⚠️',
+  //   description: `Scans each domain for hazards: PFAS (latest thresholds), asbestos, clinical waste, dangerous goods, PASS/Acid Sulphate Soil, scheduled chemicals, and all relevant EPA limits. Flags all detected dangers with clear warnings. (FOR NOW IT WILL TAKE SOME TIME TO PROCESS[As it is internally calling 3rd agent first] It will be reduced when we integrate them.)`,
+  //   icon: FileText,
+  //   webhook: 'https://gluagents.xyz/webhook/c4cd6ede-85e1-42a8-812c-81c325d619d2'
+  // },
+  // {
+  //   id: 'epa-rulebook',
+  //   name: '5. EPA Rule Book 📊',
+  //   description: `Assigns official EPA waste class (General Solid, Restricted, Hazardous, Special/Liquid) for each domain, compares all chemical results to EPA Table 1 & 2 (including PFAS addendum), cites any exceedances, and outputs the strictest class required by regulations. (FOR NOW IT WILL TAKE SOME TIME TO PROCESS[As it is internally calling 3rd and 4th agent first] It will be reduced when we integrate them.)`,
+  //   icon: FileText,
+  //   webhook: 'https://gluagents.xyz/webhook/306f5aee-9a58-410c-8174-5c11074085d2'
+  // },
+  // {
+  //   id: 'recycling-hunter',
+  //   name: '6. The Recycling Hunter ♻️',
+  //   description: `Checks if material qualifies for recycling. If eligible, assigns the correct recycling category according to the categorisation table. If not, provides reasons.`,
+  //   icon: FileText,
+  //   webhook: 'https://gluagents.xyz/webhook/b8e96366-e881-493c-8508-ebff2b657217'
+  // },
   {
     id: 'unified-flow',
-    name: 'Unified flow',
-    description: ``,
+    name: 'Agent Orchestrator',
+    description: `Runs all agents in sequence, gathers their results, and provides a single consolidated view of statuses and responses.`,
     icon: FileText,
     webhook: 'https://gluagents.xyz/webhook/23145b04-8328-41c1-b417-ef201e806dd7'
-  },
+  }
 ]
 
 export default function Sidebar({
@@ -81,7 +81,7 @@ export default function Sidebar({
   onToggleCollapse
 }) {
   const [searchQuery, setSearchQuery] = useState('')
-  const [favorites, setFavorites] = useState(['document-gatekeeper'])
+  const [favorites, setFavorites] = useState(['unified-flow'])
   const [showUserMenu, setShowUserMenu] = useState(false)
   const [showFilters, setShowFilters] = useState(false)
   const [statusFilter, setStatusFilter] = useState('all')
