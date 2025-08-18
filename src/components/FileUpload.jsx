@@ -1,19 +1,13 @@
+// FileUpload.jsx
 import { useState, useCallback, useRef, useMemo } from 'react'
-import { Upload, FileText, File, X, Loader2, ShieldCheck } from 'lucide-react'
+import { Upload, FileText, File, X, Loader2, ShieldCheck, CheckCircle, Download } from 'lucide-react'
 import { Button } from '@/components/ui/button.jsx'
 
-/**
- * Premium FileUpload.jsx
- * - Glassmorphism drop zone with animated drag-over state
- * - File preview row with filetype icon
- * - Indeterminate progress bar while uploading
- * - Micro-interactions on buttons (ripple-like scale, subtle glow)
- * - Same external API: props { agent, onResponse }
- */
 export default function FileUpload({ agent, onResponse }) {
   const [isDragOver, setIsDragOver] = useState(false)
   const [selectedFile, setSelectedFile] = useState(null)
   const [isUploading, setIsUploading] = useState(false)
+  const [hasResult, setHasResult] = useState(false)   // NEW: track when a result has been received
   const [error, setError] = useState(null)
   const fileInputRef = useRef(null)
 
@@ -24,68 +18,41 @@ export default function FileUpload({ agent, onResponse }) {
     return File
   }, [selectedFile])
 
-  const handleDragOver = useCallback((e) => {
-    e.preventDefault()
-    setIsDragOver(true)
-  }, [])
-
-  const handleDragLeave = useCallback((e) => {
-    e.preventDefault()
-    setIsDragOver(false)
-  }, [])
-
+  const handleDragOver = useCallback((e) => { e.preventDefault(); setIsDragOver(true) }, [])
+  const handleDragLeave = useCallback((e) => { e.preventDefault(); setIsDragOver(false) }, [])
   const handleDrop = useCallback((e) => {
-    e.preventDefault()
-    setIsDragOver(false)
+    e.preventDefault(); setIsDragOver(false)
     const files = Array.from(e.dataTransfer.files)
-    if (files.length > 0) {
-      setSelectedFile(files[0])
-      setError(null)
-    }
+    if (files.length > 0) { setSelectedFile(files[0]); setError(null); setHasResult(false) } // reset result
   }, [])
 
   const handleFileSelect = (e) => {
     const files = Array.from(e.target.files)
-    if (files.length > 0) {
-      setSelectedFile(files[0])
-      setError(null)
-    }
+    if (files.length > 0) { setSelectedFile(files[0]); setError(null); setHasResult(false) } // reset result
   }
 
   const removeFile = () => {
-    setSelectedFile(null)
-    setError(null)
+    setSelectedFile(null); setError(null); setHasResult(false)
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
   const uploadFile = async () => {
     if (!selectedFile || !agent) return
-
-    setIsUploading(true)
-    setError(null)
+    setIsUploading(true); setError(null)
 
     try {
       const formData = new FormData()
       formData.append('file', selectedFile)
 
-      const response = await fetch(agent.webhook, {
-        method: 'POST',
-        body: formData,
-      })
+      const response = await fetch(agent.webhook, { method: 'POST', body: formData })
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
-      }
-
-      // Always use text first; try JSON parse, fallback to string
       const text = await response.text()
-      let result
-      try { result = JSON.parse(text) } catch { result = text }
+      let result; try { result = JSON.parse(text) } catch { result = text }
       onResponse?.(result)
+      setHasResult(true) // NEW: we have something to view
 
       setSelectedFile(null)
-      setIsUploading(false)
-      setError(null)
       if (fileInputRef.current) fileInputRef.current.value = ''
     } catch (err) {
       setError(err.message || 'Failed to upload file')
@@ -101,6 +68,32 @@ export default function FileUpload({ agent, onResponse }) {
     const i = Math.floor(Math.log(bytes) / Math.log(k))
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
   }
+
+  const StepItem = ({ index, title, desc, state }) => {
+    const isDone = state === 'done'
+    const isCurrent = state === 'current'
+    const circleCls = isDone
+      ? 'bg-green-100 text-green-700 border-green-200'
+      : isCurrent
+      ? 'bg-blue-100 text-blue-700 border-blue-200'
+      : 'bg-gray-100 text-gray-600 border-gray-200'
+    return (
+      <li className="flex items-start gap-3">
+        <div className={`flex items-center justify-center w-8 h-8 rounded-full border text-sm font-semibold ${circleCls}`}>
+          {isDone ? <CheckCircle className="w-5 h-5" /> : index}
+        </div>
+        <div>
+          <div className="font-medium">{title}</div>
+          <div className="text-sm text-muted-foreground">{desc}</div>
+        </div>
+      </li>
+    )
+  }
+
+  // Compute step states
+  const step1State = hasResult ? 'done' : (isUploading ? 'pending' : 'current')
+  const step2State = isUploading ? 'current' : (hasResult ? 'done' : 'pending')
+  const step3State = hasResult ? 'current' : 'pending'
 
   if (!agent) {
     return (
@@ -118,6 +111,32 @@ export default function FileUpload({ agent, onResponse }) {
 
   return (
     <div className="space-y-6">
+
+      {/* NEW: How it works */}
+      <div className="border rounded-2xl p-5 bg-white/70 dark:bg-gray-900/40 backdrop-blur-sm">
+        <h3 className="font-semibold mb-3">How it works</h3>
+        <ol className="grid gap-4 md:grid-cols-3">
+          <StepItem
+            index={1}
+            state={step1State}
+            title="Upload report"
+            desc="Drag & drop or select the waste report you want to process, then upload it."
+          />
+          <StepItem
+            index={2}
+            state={step2State}
+            title="Processing"
+            desc="Wait for all agents to process the report."
+          />
+          <StepItem
+            index={3}
+            state={step3State}
+            title="View & download"
+            desc="View agents' outputs or download a PDF of the responses."
+          />
+        </ol>
+      </div>
+
       {/* Upload Area */}
       <div
         onDragOver={handleDragOver}
@@ -131,33 +150,17 @@ export default function FileUpload({ agent, onResponse }) {
             : 'border-border hover:border-primary/50 hover:shadow-[0_10px_40px_-10px_rgba(0,0,0,0.15)]',
         ].join(' ')}
       >
-        {/* Glow ring on drag */}
         <div
           className={`pointer-events-none absolute inset-0 rounded-2xl transition-opacity ${isDragOver ? 'opacity-100' : 'opacity-0'}`}
-          style={{
-            boxShadow: '0 0 0 6px rgba(59,130,246,0.12) inset, 0 30px 80px -20px rgba(59,130,246,0.25)'
-          }}
+          style={{ boxShadow: '0 0 0 6px rgba(59,130,246,0.12) inset, 0 30px 80px -20px rgba(59,130,246,0.25)' }}
         />
-
         <Upload className={`w-12 h-12 mx-auto mb-4 ${isDragOver ? 'text-primary' : 'text-muted-foreground'}`} />
-        <h3 className="text-lg font-semibold mb-2">
-          {isDragOver ? 'Drop your file here' : 'Upload a file'}
-        </h3>
+        <h3 className="text-lg font-semibold mb-2">{isDragOver ? 'Drop your file here' : 'Upload a file'}</h3>
         <p className="text-muted-foreground mb-5">Drag & drop your file here, or click to browse</p>
 
-        <input
-          type="file"
-          ref={fileInputRef}
-          onChange={handleFileSelect}
-          className="hidden"
-          id="file-input"
-          accept=".pdf"
-        />
-
+        <input type="file" ref={fileInputRef} onChange={handleFileSelect} className="hidden" id="file-input" accept=".pdf" />
         <Button asChild variant="outline" className="relative overflow-hidden active:scale-[0.99] transition-transform">
-          <label htmlFor="file-input" className="cursor-pointer">
-            Browse Files
-          </label>
+          <label htmlFor="file-input" className="cursor-pointer">Browse Files</label>
         </Button>
 
         <div className="mt-4 flex items-center justify-center gap-2 text-xs text-muted-foreground">
@@ -186,23 +189,11 @@ export default function FileUpload({ agent, onResponse }) {
           </div>
 
           <div className="mt-4 flex gap-2 items-center">
-            <Button
-              onClick={uploadFile}
-              disabled={isUploading}
-              className="flex-1 cursor-pointer active:scale-[0.99] transition-transform"
-            >
-              {isUploading ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Processing...
-                </>
-              ) : (
-                'Upload & Process'
-              )}
+            <Button onClick={uploadFile} disabled={isUploading} className="flex-1 cursor-pointer active:scale-[0.99] transition-transform">
+              {isUploading ? (<><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Processing...</>) : ('Upload & Process')}
             </Button>
           </div>
 
-          {/* Indeterminate progress bar */}
           {isUploading && (
             <div className="mt-3 h-2 w-full rounded-full bg-muted overflow-hidden">
               <div className="h-full w-1/2 rounded-full animate-[shimmer_1.2s_infinite]" style={{
@@ -212,15 +203,11 @@ export default function FileUpload({ agent, onResponse }) {
           )}
 
           <style jsx>{`
-            @keyframes shimmer {
-              0% { transform: translateX(-100%); }
-              100% { transform: translateX(200%); }
-            }
+            @keyframes shimmer { 0% { transform: translateX(-100%); } 100% { transform: translateX(200%); } }
           `}</style>
         </div>
       )}
 
-      {/* Error Display */}
       {error && (
         <div className="bg-destructive/10 border border-destructive/20 rounded-2xl p-4">
           <p className="text-destructive font-medium">Upload Error</p>

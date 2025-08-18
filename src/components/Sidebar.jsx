@@ -65,7 +65,7 @@ const agents = [
   // },
   {
     id: 'unified-flow',
-    name: 'Agent Orchestrator',
+    name: 'HIQ Compliance Agent',
     description: `Runs all agents in sequence, gathers their results, and provides a single consolidated view of statuses and responses.`,
     icon: FileText,
     webhook: 'https://gluagents.xyz/webhook/23145b04-8328-41c1-b417-ef201e806dd7'
