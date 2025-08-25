@@ -1,13 +1,13 @@
 // FileUpload.jsx
 import { useState, useCallback, useRef, useMemo } from 'react'
-import { Upload, FileText, File, X, Loader2, ShieldCheck, CheckCircle, Download } from 'lucide-react'
+import { Upload, FileText, File, X, Loader2, ShieldCheck, CheckCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button.jsx'
 
 export default function FileUpload({ agent, onResponse }) {
   const [isDragOver, setIsDragOver] = useState(false)
   const [selectedFile, setSelectedFile] = useState(null)
   const [isUploading, setIsUploading] = useState(false)
-  const [hasResult, setHasResult] = useState(false)   // NEW: track when a result has been received
+  const [hasResult, setHasResult] = useState(false)
   const [error, setError] = useState(null)
   const fileInputRef = useRef(null)
 
@@ -23,12 +23,12 @@ export default function FileUpload({ agent, onResponse }) {
   const handleDrop = useCallback((e) => {
     e.preventDefault(); setIsDragOver(false)
     const files = Array.from(e.dataTransfer.files)
-    if (files.length > 0) { setSelectedFile(files[0]); setError(null); setHasResult(false) } // reset result
+    if (files.length > 0) { setSelectedFile(files[0]); setError(null); setHasResult(false) }
   }, [])
 
   const handleFileSelect = (e) => {
     const files = Array.from(e.target.files)
-    if (files.length > 0) { setSelectedFile(files[0]); setError(null); setHasResult(false) } // reset result
+    if (files.length > 0) { setSelectedFile(files[0]); setError(null); setHasResult(false) }
   }
 
   const removeFile = () => {
@@ -49,9 +49,11 @@ export default function FileUpload({ agent, onResponse }) {
 
       const text = await response.text()
       let result; try { result = JSON.parse(text) } catch { result = text }
-      onResponse?.(result)
-      setHasResult(true) // NEW: we have something to view
 
+      // IMPORTANT: bubble up the filename along with the parsed result
+      onResponse?.({ result, fileName: selectedFile.name })
+
+      setHasResult(true)
       setSelectedFile(null)
       if (fileInputRef.current) fileInputRef.current.value = ''
     } catch (err) {
@@ -90,7 +92,6 @@ export default function FileUpload({ agent, onResponse }) {
     )
   }
 
-  // Compute step states
   const step1State = hasResult ? 'done' : (isUploading ? 'pending' : 'current')
   const step2State = isUploading ? 'current' : (hasResult ? 'done' : 'pending')
   const step3State = hasResult ? 'current' : 'pending'
@@ -112,28 +113,13 @@ export default function FileUpload({ agent, onResponse }) {
   return (
     <div className="space-y-6">
 
-      {/* NEW: How it works */}
+      {/* How it works */}
       <div className="border rounded-2xl p-5 bg-white/70 dark:bg-gray-900/40 backdrop-blur-sm">
         <h3 className="font-semibold mb-3">How it works</h3>
         <ol className="grid gap-4 md:grid-cols-3">
-          <StepItem
-            index={1}
-            state={step1State}
-            title="Upload report"
-            desc="Drag & drop or select the waste report you want to process, then upload it."
-          />
-          <StepItem
-            index={2}
-            state={step2State}
-            title="Processing"
-            desc="Wait for all agents to process the report."
-          />
-          <StepItem
-            index={3}
-            state={step3State}
-            title="View & download"
-            desc="View agents' outputs or download a PDF of the responses."
-          />
+          <StepItem index={1} state={step1State} title="Upload report" desc="Drag & drop or select the waste report you want to process, then upload it." />
+          <StepItem index={2} state={step2State} title="Processing" desc="Wait for all agents to process the report." />
+          <StepItem index={3} state={step3State} title="View & download" desc="View agents' outputs or download a PDF of the responses." />
         </ol>
       </div>
 

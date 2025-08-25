@@ -1,15 +1,7 @@
+// ResponseDisplay.jsx
 import React, { useMemo, useState } from 'react';
 import {
-  ChevronDown,
-  ChevronRight,
-  Copy,
-  Check,
-  Maximize2,
-  Minimize2,
-  Download,
-  Code2,
-  FileText,
-  SplitSquareVertical
+  ChevronDown, ChevronRight, Copy, Check, Maximize2, Minimize2, Download, Code2, FileText, SplitSquareVertical
 } from 'lucide-react';
 import { Button } from '@/components/ui/button.jsx';
 import { jsPDF } from 'jspdf';
@@ -65,7 +57,7 @@ function makePdfHelpers(doc) {
       doc.setFillColor(fill[0], fill[1], fill[2]);
       doc.roundedRect(x, y, w, h, 4, 4, 'F');
       doc.setTextColor(0, 0, 0);
-      doc.text(safeLabel, x + padX, y + h/2 + 3);
+      doc.text(safeLabel, x + padX, y + h / 2 + 3);
       x += w + gap;
     });
     return y + 26;
@@ -114,10 +106,8 @@ function normalizeResponseShape(response) {
   };
 }
 
-export default function ResponseDisplay({ response, domains }) {
+export default function ResponseDisplay({ response, domains, fileName }) {
   const [isExpanded, setIsExpanded] = useState(true);
-
-  // Agent section collapsed by default (as requested)
   const [agentOpen, setAgentOpen] = useState(false);
 
   // Agent controls
@@ -151,12 +141,15 @@ export default function ResponseDisplay({ response, domains }) {
   const copyAll = async () => {
     try {
       await navigator.clipboard.writeText(JSON.stringify({ jsons: normalized.jsons, plain_texts: normalized.plain_texts }, null, 2));
-    setCopied(true);
+      setCopied(true);
       setTimeout(() => setCopied(false), 1600);
     } catch (e) { console.error('Failed to copy:', e); }
   };
 
-  /* ------- Agent PDF (unchanged) ------- */
+  // Base for file naming — strip extension
+  const safeBase = (fileName ? fileName.replace(/\.[^/.]+$/, '') : 'report').trim() || 'report';
+
+  /* ------- Agent PDF (updated name) ------- */
   const exportAgentPdf = () => {
     const doc = new jsPDF({ unit: 'pt', format: 'a4' });
     const { pageW, pageH, margin, addWrapped, addDivider, addBadgeRow } = makePdfHelpers(doc);
@@ -249,7 +242,8 @@ export default function ResponseDisplay({ response, domains }) {
       doc.text(`${i} / ${totalPages}`, doc.internal.pageSize.getWidth() - 48, doc.internal.pageSize.getHeight() - 20, { align: 'right' });
     }
 
-    doc.save('agent-responses.pdf');
+    // UPDATED NAME:
+    doc.save(`${safeBase}-agent-responses.pdf`);
   };
 
   if (!response) return null;
@@ -260,12 +254,31 @@ export default function ResponseDisplay({ response, domains }) {
 
   return (
     <div className="bg-card border rounded-2xl overflow-hidden">
-      {/* Header for entire widget */}
+      {/* Header for entire widget with file name */}
       <div className="flex items-center justify-between p-4 border-b">
-        <button onClick={() => setIsExpanded(!isExpanded)} className="flex items-center gap-2 text-left hover:text-primary transition-colors">
-          {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-          <h3 className="font-semibold">Responses</h3>
-        </button>
+        <div className="flex items-center gap-2">
+          {/* Toggle + label */}
+          <button
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="flex items-center gap-1 text-left hover:text-primary transition-colors"
+          >
+            {isExpanded ? (
+              <ChevronDown className="w-4 h-4" />
+            ) : (
+              <ChevronRight className="w-4 h-4" />
+            )}
+            <h3 className="font-semibold">Responses</h3>
+          </button>
+
+          {fileName && (
+            <div className="flex items-center gap-1 text-sm font-medium px-2 py-0.5 rounded-md 
+                  bg-gray-100 dark:bg-gray-800 
+                  text-gray-800 dark:text-gray-200">
+              <FileText className="w-4 h-4 text-green-600 dark:text-green-400" />
+              <span className="truncate max-w-[220px]">{fileName}</span>
+            </div>
+          )}
+        </div>
       </div>
 
       {isExpanded && (
@@ -282,7 +295,6 @@ export default function ResponseDisplay({ response, domains }) {
               </button>
 
               <div className="flex items-center gap-2">
-                {/* Hide global JSON/Plain when Split View is ON */}
                 {!splitView && (
                   <div className="hidden md:flex items-center gap-1 text-xs mr-1">
                     <span className="text-muted-foreground mr-2">View:</span>
@@ -321,7 +333,6 @@ export default function ResponseDisplay({ response, domains }) {
               </div>
             </div>
 
-            {/* Collapsible body */}
             {agentOpen && (
               <>
                 {summary && (
@@ -373,7 +384,6 @@ export default function ResponseDisplay({ response, domains }) {
                             )}
                           </h4>
                           <div className="flex items-center gap-2">
-                            {/* Hide per-card JSON/Plain when Split View is ON */}
                             {!splitView && (
                               <div className="flex items-center gap-1 text-xs mr-2">
                                 <Button variant={mode === 'jsons' ? 'default' : 'outline'} size="sm" className="h-7" onClick={() => setCardMode(key, 'jsons')}>JSON</Button>
@@ -409,7 +419,8 @@ export default function ResponseDisplay({ response, domains }) {
             domainJsons={domainJsons}
             domainTexts={domainTexts}
             domains={domains}
-            defaultOpen={false}  // collapsed by default
+            defaultOpen={false}
+            fileName={fileName}  // pass down for PDF naming
           />
         </div>
       )}

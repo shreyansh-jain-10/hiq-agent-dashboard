@@ -1,3 +1,4 @@
+// DomainWiseResponses.jsx
 import React, { useMemo, useState } from 'react';
 import { Minimize2, Maximize2, Code2, FileText, SplitSquareVertical, Download, Copy, Check, ChevronDown, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button.jsx';
@@ -65,12 +66,10 @@ function makePdfHelpers(doc) {
  *   domainTexts: object keyed by domain → string (plain text)
  *   domains (optional): array for canonical ordering
  *   defaultOpen (optional): boolean (default false)
+ *   fileName (optional): original uploaded file name for export naming
  */
-export default function DomainWiseResponses({ domainJsons, domainTexts, domains, defaultOpen = false }) {
-  // Section open/closed — collapsed by default
+export default function DomainWiseResponses({ domainJsons, domainTexts, domains, defaultOpen = false, fileName }) {
   const [open, setOpen] = useState(!!defaultOpen);
-
-  // Controls local to this section only
   const [splitView, setSplitView] = useState(false);
   const [globalMode, setGlobalMode] = useState('jsons'); // 'jsons' | 'plain_texts'
   const [modeMap, setModeMap] = useState({});
@@ -82,7 +81,6 @@ export default function DomainWiseResponses({ domainJsons, domainTexts, domains,
   const isExpanded = (key) => !!expandedMap[key];
   const toggleExpand = (key) => setExpandedMap((m) => ({ ...m, [key]: !m[key] }));
 
-  // STRICT: show only domains present in domainJsons
   const domainKeys = useMemo(() => {
     const keys = Object.keys(domainJsons || {});
     if (domains && Array.isArray(domains) && domains.length) {
@@ -105,6 +103,7 @@ export default function DomainWiseResponses({ domainJsons, domainTexts, domains,
   const exportDomainPdf = () => {
     const doc = new jsPDF({ unit: 'pt', format: 'a4' });
     const { pageW, pageH, margin, addWrapped, addDivider, addBadgeRow } = makePdfHelpers(doc);
+    const safeBase = (fileName ? fileName.replace(/\.[^/.]+$/, '') : 'report').trim() || 'report';
 
     let y = margin + 6;
     doc.setFont('helvetica', 'bold'); doc.setFontSize(22); doc.text('Domain-wise Responses', margin, y); y += 28;
@@ -187,7 +186,8 @@ export default function DomainWiseResponses({ domainJsons, domainTexts, domains,
       doc.text(`${i} / ${total}`, pageW - 48, pageH - 20, { align: 'right' });
     }
 
-    doc.save('domain-responses.pdf');
+    // UPDATED NAME:
+    doc.save(`${safeBase}-domain-responses.pdf`);
   };
 
   return (
@@ -199,7 +199,6 @@ export default function DomainWiseResponses({ domainJsons, domainTexts, domains,
         </button>
 
         <div className="flex items-center gap-2">
-          {/* Hide global JSON/Plain when Split View is ON */}
           {!splitView && (
             <div className="hidden md:flex items-center gap-1 text-xs mr-1">
               <span className="text-muted-foreground mr-2">View:</span>
@@ -275,7 +274,6 @@ export default function DomainWiseResponses({ domainJsons, domainTexts, domains,
                 <div className="flex items-center justify-between px-4 py-3 border-b">
                   <h4 className="font-medium text-lg">{key}</h4>
                   <div className="flex items-center gap-2">
-                    {/* Hide per-card JSON/Plain when Split View is ON */}
                     {!splitView && (
                       <div className="flex items-center gap-1 text-xs mr-2">
                         <Button variant={mode === 'jsons' ? 'default' : 'outline'} size="sm" className="h-7" onClick={() => setCardMode(key, 'jsons')}>JSON</Button>

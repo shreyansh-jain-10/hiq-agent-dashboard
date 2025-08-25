@@ -1,24 +1,26 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Sidebar from './components/Sidebar'
 import FileUpload from './components/FileUpload'
 import ResponseDisplay from './components/ResponseDisplay'
 import './App.css'
-import { useEffect } from 'react'
-import { Moon } from 'lucide-react'
-import { Sun } from 'lucide-react'
+import { Moon, Sun } from 'lucide-react'
 
 function App() {
   const [selectedAgent, setSelectedAgent] = useState(null)
   const [response, setResponse] = useState(null)
+  const [uploadedFileName, setUploadedFileName] = useState(null) // NEW
   const [theme, setTheme] = useState('light')
 
   const handleAgentSelect = (agent) => {
     setSelectedAgent(agent)
-    setResponse(null) // Clear previous response when switching agents
+    setResponse(null)            // Clear previous response when switching agents
+    setUploadedFileName(null)    // Clear previous file name
   }
 
-  const handleResponse = (responseData) => {
-    setResponse(responseData)
+  // UPDATED: receive both { result, fileName } from FileUpload
+  const handleResponse = ({ result, fileName }) => {
+    setResponse(result)          // only the parsed result goes to ResponseDisplay.response
+    setUploadedFileName(fileName) // keep the original filename for banner & PDF names
   }
 
   useEffect(() => {
@@ -29,9 +31,8 @@ function App() {
     }
   }, [theme])
 
-  const handleThemeChange = (newTheme) => {
-    setTheme(newTheme)
-  }
+  const handleThemeChange = (newTheme) => setTheme(newTheme)
+
   return (
     <div className="flex h-screen bg-background">
       {/* Sidebar */}
@@ -54,7 +55,6 @@ function App() {
                   <p className="text-muted-foreground">
                     {selectedAgent.description}
                   </p>
-
                 </div>
               ) : (
                 <div>
@@ -67,20 +67,13 @@ function App() {
                 </div>
               )}
             </div>
+
             <div>
               <button
-                onClick={() => {
-                  handleThemeChange(theme === 'light' ? 'dark' : 'light')
-                  // setShowUserMenu(false)
-                }}
+                onClick={() => handleThemeChange(theme === 'light' ? 'dark' : 'light')}
                 className="w-full flex cursor-pointer items-center gap-3 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
               >
-
-                {theme === 'light' ? (
-                  <Moon className="w-4 h-4" />
-                ) : (
-                  <Sun className="w-4 h-4" />
-                )}
+                {theme === 'light' ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
                 <span className="text-sm">
                   {theme === 'light' ? 'Dark Mode' : 'Light Mode'}
                 </span>
@@ -97,14 +90,17 @@ function App() {
               <h2 className="text-lg font-medium mb-4">File Upload</h2>
               <FileUpload
                 agent={selectedAgent}
-                onResponse={handleResponse}
+                onResponse={handleResponse} // now receives { result, fileName }
               />
             </div>
 
             {/* Response Section */}
             {response && (
               <div>
-                <ResponseDisplay response={response} />
+                <ResponseDisplay
+                  response={response}
+                  fileName={uploadedFileName} // NEW: shows in header & names PDFs
+                />
               </div>
             )}
           </div>
@@ -115,4 +111,3 @@ function App() {
 }
 
 export default App
-
