@@ -72,7 +72,7 @@ function App() {
 
         {/* Content */}
         <main className="flex-1 overflow-auto">
-          <div className="max-w-4xl mx-auto p-6 space-y-6">
+          <div className="max-w-[76rem] mx-auto p-6 space-y-6">
             {/* File Upload Section */}
             <div
               className={[
@@ -87,10 +87,11 @@ function App() {
 
             {/* Response Section */}
             {response && (
-              <div className="bg-card border rounded-lg p-6">
+              <div className="bg-card border rounded-lg p-6 max-w-6xl mx-auto">
                 <ResponseDisplay response={response} fileName={uploadedFileName} />
               </div>
             )}
+
           </div>
         </main>
       </div>
