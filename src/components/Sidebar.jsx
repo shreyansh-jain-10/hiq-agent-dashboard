@@ -65,7 +65,7 @@ const agents = [
   // },
   {
     id: 'unified-flow',
-    name: 'HIQ Compliance Agent',
+    name: 'NSW Compliance Agent',
     description: `Runs all agents in sequence, gathers their results, and provides a single consolidated view of statuses and responses.`,
     icon: FileText,
     webhook: 'https://gluagents.xyz/webhook/23145b04-8328-41c1-b417-ef201e806dd7'
@@ -168,7 +168,7 @@ export default function Sidebar({
               <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full" />
             </div>
             <div>
-              <h1 className="text-lg font-semibold text-gray-900 dark:text-white">HIQ Agent Testing</h1>
+              <h1 className="text-lg font-semibold text-gray-900 dark:text-white">HiQ Agent Testing</h1>
               <p className="text-sm text-gray-500 dark:text-gray-400">Dashboard</p>
             </div>
           </div>

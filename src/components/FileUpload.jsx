@@ -77,8 +77,8 @@ export default function FileUpload({ agent, onResponse }) {
     const circleCls = isDone
       ? 'bg-green-100 text-green-700 border-green-200'
       : isCurrent
-      ? 'bg-blue-100 text-blue-700 border-blue-200'
-      : 'bg-gray-100 text-gray-600 border-gray-200'
+        ? 'bg-blue-100 text-blue-700 border-blue-200'
+        : 'bg-gray-100 text-gray-600 border-gray-200'
     return (
       <li className="flex items-start gap-3">
         <div className={`flex items-center justify-center w-8 h-8 rounded-full border text-sm font-semibold ${circleCls}`}>
@@ -98,11 +98,16 @@ export default function FileUpload({ agent, onResponse }) {
 
   if (!agent) {
     return (
-      <div className="flex-1 flex items-center justify-center">
+      <div className="flex-1 flex items-center justify-center px-4">
         <div className="text-center">
-          <Upload className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-foreground mb-2">Select an Agent</h3>
-          <p className="text-muted-foreground">Choose an agent from the sidebar to start testing</p>
+          <div className="mb-4 inline-flex items-center justify-center w-12 h-12 rounded-full border border-border">
+            <ShieldCheck className="w-6 h-6 text-muted-foreground" />
+          </div>
+
+          <h3 className="text-xl font-semibold text-foreground mb-1">Select an Agent</h3>
+          <p className="text-sm text-muted-foreground mb-5">
+            Choose an agent from the sidebar to enable file upload.
+          </p>
         </div>
       </div>
     )
@@ -111,7 +116,15 @@ export default function FileUpload({ agent, onResponse }) {
   const DropIcon = fileIcon
 
   return (
+    
     <div className="space-y-6">
+
+      <h2
+  id="file-upload-heading"
+  className="text-2xl font-bold tracking-tight text-foreground text-center"
+>
+  File Upload
+</h2>
 
       {/* How it works */}
       <div className="border rounded-2xl p-5 bg-white/70 dark:bg-gray-900/40 backdrop-blur-sm">
