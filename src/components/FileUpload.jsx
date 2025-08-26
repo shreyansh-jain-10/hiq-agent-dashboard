@@ -99,13 +99,13 @@ export default function FileUpload({ agent, onResponse }) {
   if (!agent) {
     return (
       <div className="flex-1 flex items-center justify-center px-4">
-        <div className="text-center">
-          <div className="mb-4 inline-flex items-center justify-center w-12 h-12 rounded-full border border-border">
-            <ShieldCheck className="w-6 h-6 text-muted-foreground" />
+        <div className="bg-card border rounded-2xl p-10 text-center max-w-md shadow-sm">
+          <div className="mb-6 inline-flex items-center justify-center w-14 h-14 rounded-full bg-primary/10 text-primary">
+            <ShieldCheck className="w-7 h-7" />
           </div>
 
-          <h3 className="text-xl font-semibold text-foreground mb-1">Select an Agent</h3>
-          <p className="text-sm text-muted-foreground mb-5">
+          <h2 className="text-2xl font-bold text-foreground mb-3">Select an Agent</h2>
+          <p className="text-base text-muted-foreground mb-6">
             Choose an agent from the sidebar to enable file upload.
           </p>
         </div>
@@ -116,15 +116,15 @@ export default function FileUpload({ agent, onResponse }) {
   const DropIcon = fileIcon
 
   return (
-    
+
     <div className="space-y-6">
 
       <h2
-  id="file-upload-heading"
-  className="text-2xl font-bold tracking-tight text-foreground text-center"
->
-  File Upload
-</h2>
+        id="file-upload-heading"
+        className="text-2xl font-bold tracking-tight text-foreground text-center"
+      >
+        File Upload
+      </h2>
 
       {/* How it works */}
       <div className="border rounded-2xl p-5 bg-white/70 dark:bg-gray-900/40 backdrop-blur-sm">
