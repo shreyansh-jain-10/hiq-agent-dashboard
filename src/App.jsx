@@ -5,7 +5,8 @@ import Sidebar from './components/Sidebar'
 import FileUpload from './components/FileUpload'
 import ResponseDisplay from './components/ResponseDisplay'
 import './App.css'
-import { Moon, Sun, LogOut } from 'lucide-react'
+import { Moon, Sun, LogOut, Bug } from 'lucide-react'
+import BugReport from './BugReport'
 
 // ✨ add these:
 import { supabase } from './supabaseClient'
@@ -16,6 +17,7 @@ function App() {
   const [response, setResponse] = useState(null)
   const [uploadedFileName, setUploadedFileName] = useState(null)
   const [theme, setTheme] = useState('light')
+  const [showBugForm, setShowBugForm] = useState(false)
 
   // ✨ auth state
   const [session, setSession] = useState(null)
@@ -49,10 +51,12 @@ function App() {
     setSelectedAgent(agent)
     setResponse(null)
     setUploadedFileName(null)
+    setShowBugForm(false) 
   }
   const handleResponse = ({ result, fileName }) => {
     setResponse(result)
     setUploadedFileName(fileName)
+    setShowBugForm(false) 
   }
   const handleThemeChange = (newTheme) => setTheme(newTheme)
 
@@ -99,6 +103,14 @@ function App() {
 
             <div className="flex items-center gap-3">
               <button
+                onClick={() => setShowBugForm(true)}
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-300 text-foreground hover:bg-gray-100 dark:border-gray-700 dark:hover:bg-gray-800 transition"
+              >
+                <Bug className="w-4 h-4" />
+                Report a Bug
+              </button>
+
+              <button
                 onClick={() => handleThemeChange(theme === 'light' ? 'dark' : 'light')}
                 className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
               >
@@ -127,6 +139,13 @@ function App() {
               <div className="bg-card border rounded-lg p-6 max-w-6xl mx-auto">
                 <ResponseDisplay response={response} fileName={uploadedFileName} />
               </div>
+            )}
+            {showBugForm && (
+              <BugReport
+                selectedAgent={selectedAgent}
+                defaultFileName={uploadedFileName}
+                onClose={() => setShowBugForm(false)}
+              />
             )}
           </div>
         </main>
