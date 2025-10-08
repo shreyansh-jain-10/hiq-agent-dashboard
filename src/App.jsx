@@ -8,9 +8,8 @@ import './App.css'
 import { Moon, Sun, LogOut, Bug } from 'lucide-react'
 import BugReport from './BugReport'
 
-// ✨ add these:
+// âœ¨ add these:
 import { supabase } from './supabaseClient'
-import Login from './Login'
 
 function App() {
   const [selectedAgent, setSelectedAgent] = useState(null)
@@ -19,33 +18,10 @@ function App() {
   const [theme, setTheme] = useState('light')
   const [showBugForm, setShowBugForm] = useState(false)
 
-  // ✨ auth state
-  const [session, setSession] = useState(null)
-  const [checking, setChecking] = useState(true)
-
   useEffect(() => {
     if (theme === 'dark') document.documentElement.classList.add('dark')
     else document.documentElement.classList.remove('dark')
   }, [theme])
-
-  // ✨ fetch session on mount + subscribe to changes
-  useEffect(() => {
-    let mounted = true
-    ;(async () => {
-      const { data } = await supabase.auth.getSession()
-      if (!mounted) return
-      setSession(data.session ?? null)
-      setChecking(false)
-    })()
-
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, newSession) => {
-      setSession(newSession ?? null)
-    })
-    return () => {
-      mounted = false
-      sub?.subscription?.unsubscribe?.()
-    }
-  }, [])
 
   const handleAgentSelect = (agent) => {
     setSelectedAgent(agent)
@@ -62,15 +38,12 @@ function App() {
 
   const handleLogout = async () => {
     await supabase.auth.signOut()
-    // No reload needed — the onAuthStateChange above will set session=null and show <Login/>
+    // No reload needed â€” the onAuthStateChange above will set session=null and show <Login/>
   }
 
-  // ✨ gate: while checking avoid flicker
-  if (checking) return null
-  // ✨ not logged in → show Login screen
-  if (!session) return <Login />
+  // Session gating is now handled by ProtectedRoute in routing
 
-  // Logged in → your original UI
+  // Logged in â†’ your original UI
   return (
     <div className="flex h-screen bg-background">
       {/* Sidebar */}

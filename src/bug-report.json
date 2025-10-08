@@ -1,0 +1,195 @@
+{
+  "name": "Bug Reports → Google Sheets",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "bug-report",
+        "responseMode": "lastNode",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        -200,
+        100
+      ],
+      "id": "WebhookPOST",
+      "name": "Webhook (POST)",
+      "notesInFlow": true,
+      "notes": "POST JSON here from your UI."
+    },
+    {
+      "parameters": {
+        "functionCode": "const b = items[0].json;\n// Required fields\nconst required = ['agent_name','expected_output','actual_output','bug_description'];\nconst missing = required.filter(k => !b[k] || String(b[k]).trim()==='');\nif (missing.length) {\n  return [{ json: { ok:false, error:`Missing: ${missing.join(', ')}` }, pairedItem: { item: 0 }, jsonOptions: { responseCode: 400 } }];\n}\n// Add defaults\nb.reporter_email = b.reporter_email || 'unknown@local';\nb.context_file_name = b.context_file_name || '';\nb.app_version = b.app_version || '';\nb.trace_id = b.trace_id || `br_${Math.random().toString(36).slice(2)}`;\nb.timestamp = new Date().toISOString();\nreturn [{ json: b }];"
+      },
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 2,
+      "position": [
+        50,
+        100
+      ],
+      "id": "ValidateAndDefaults",
+      "name": "Validate + Defaults"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "sheetId": "",
+        "range": "BugReports!A:Z",
+        "options": {
+          "keyRow": 1,
+          "valueInputMode": "RAW"
+        }
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [
+        320,
+        100
+      ],
+      "id": "AppendRow",
+      "name": "Google Sheets - Append",
+      "credentials": {
+        "googleApi": {
+          "id": "",
+          "name": "Google Service Account (Sheets)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "responseBody": "={ { ok: true, id: $json.trace_id } }",
+        "responseCode": 200,
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              },
+              {
+                "name": "Access-Control-Allow-Headers",
+                "value": "content-type, authorization"
+              },
+              {
+                "name": "Access-Control-Allow-Methods",
+                "value": "POST, OPTIONS"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        560,
+        100
+      ],
+      "id": "Respond200",
+      "name": "Respond 200 (JSON)"
+    },
+    {
+      "parameters": {
+        "path": "bug-report",
+        "responseMode": "onReceived",
+        "options": {
+          "responseCode": 204
+        }
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        -200,
+        300
+      ],
+      "id": "WebhookOPTIONS",
+      "name": "Webhook (OPTIONS)",
+      "notesInFlow": true,
+      "notes": "CORS preflight handler for browsers."
+    },
+    {
+      "parameters": {
+        "responseCode": 204,
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              },
+              {
+                "name": "Access-Control-Allow-Headers",
+                "value": "content-type, authorization"
+              },
+              {
+                "name": "Access-Control-Allow-Methods",
+                "value": "POST, OPTIONS"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        50,
+        300
+      ],
+      "id": "Respond204",
+      "name": "Respond 204 (CORS)"
+    }
+  ],
+  "connections": {
+    "Webhook (POST)": {
+      "main": [
+        [
+          {
+            "node": "Validate + Defaults",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate + Defaults": {
+      "main": [
+        [
+          {
+            "node": "Google Sheets - Append",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Sheets - Append": {
+      "main": [
+        [
+          {
+            "node": "Respond 200 (JSON)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook (OPTIONS)": {
+      "main": [
+        [
+          {
+            "node": "Respond 204 (CORS)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetup": []
+  },
+  "active": false
+}

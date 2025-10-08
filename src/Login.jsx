@@ -1,35 +1,36 @@
 import { useEffect, useState } from 'react'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { supabase } from './supabaseClient'
-import { User, Lock, Eye, EyeOff, AlertCircle, Loader2 } from 'lucide-react'
+import { useAuthSession } from './hooks/useAuthSession'
+import { Mail, Lock, Eye, EyeOff, AlertCircle, Loader2 } from 'lucide-react'
 
-const USERNAME_DOMAIN = 'app.local' // we’ll map username → username@app.local
-const ALLOWED_USERNAME = 'HiQAdmin' // hard gate to your single user
-
-export default function Login() {
-  const [username, setUsername] = useState('')
+export default function Login({ onForgotPassword }) {
+  const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPw, setShowPw] = useState(false)
   const [capsLock, setCapsLock] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
+  const navigate = useNavigate()
+  const location = useLocation()
+  const from = location.state?.from?.pathname || '/'
+  const { session, checking } = useAuthSession()
 
   useEffect(() => {
     setError(null)
-  }, [username, password])
+  }, [email, password])
+
+  // Redirecting authenticated users is handled by GuestRoute now
 
   const onSubmit = async (e) => {
     e.preventDefault()
     setError(null)
-    if (username.trim() !== ALLOWED_USERNAME) {
-      setError('Invalid username')
-      return
-    }
     setLoading(true)
+    
     try {
-      const email = `${username}@${USERNAME_DOMAIN}`
       const { error } = await supabase.auth.signInWithPassword({ email, password })
       if (error) throw error
-      // session listener in App.jsx will swap the UI
+      navigate(from, { replace: true })
     } catch (err) {
       setError(err.message || 'Login failed')
     } finally {
@@ -72,23 +73,23 @@ export default function Login() {
           </div>
         )}
 
-        {/* Username */}
+        {/* Email */}
         <div className="space-y-2">
-          <label htmlFor="username" className="text-sm font-medium text-slate-700 dark:text-slate-300">Username</label>
+          <label htmlFor="email" className="text-sm font-medium text-slate-700 dark:text-slate-300">Email</label>
           <div className="relative">
             <span className="absolute left-3 top-1/2 -translate-y-1/2">
-              <User size={18} className="text-slate-400" />
+              <Mail size={18} className="text-slate-400" />
             </span>
             <input
-              id="username"
-              name="username"
+              id="email"
+              name="email"
+              type="email"
               className="w-full pl-10 pr-3 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-4 focus:ring-black/10 focus:border-black bg-white dark:bg-slate-900 dark:border-slate-800 dark:focus:ring-black/40"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              autoComplete="username"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              autoComplete="email"
               required
-              placeholder="Enter your username"
-              inputMode="text"
+              placeholder="Enter your email"
             />
           </div>
         </div>
@@ -127,6 +128,17 @@ export default function Login() {
               {showPw ? <EyeOff size={18} className="text-slate-500" /> : <Eye size={18} className="text-slate-500" />}
             </button>
           </div>
+        </div>
+
+        {/* Forgot Password Link */}
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={onForgotPassword}
+            className="text-sm text-slate-600 dark:text-slate-400 hover:text-black dark:hover:text-white transition-colors"
+          >
+            Forgot password?
+          </button>
         </div>
 
         {/* Submit */}
