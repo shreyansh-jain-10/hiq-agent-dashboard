@@ -1,11 +1,14 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from './supabaseClient'
-import { Users, UserPlus, Mail, Shield, AlertCircle, CheckCircle, Loader2, LogOut, Eye, EyeOff, Copy, Check } from 'lucide-react'
+import { supabaseAdmin } from './supabaseAdmin'
+import { Users, UserPlus, Mail, Shield, AlertCircle, CheckCircle, Loader2, LogOut, Eye, EyeOff, Copy, Check, MapPin, Plus, X, Edit, Trash2, MoreVertical } from 'lucide-react'
 
-const USERNAME_DOMAIN = 'app.local'
-
-export default function AdminDashboard({ onLogout }) {
+export default function AdminDashboard() {
+  const navigate = useNavigate()
   const [users, setUsers] = useState([])
+  const [sites, setSites] = useState([])
+  const [userSites, setUserSites] = useState([])
   const [loading, setLoading] = useState(true)
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState(null)
@@ -13,20 +16,36 @@ export default function AdminDashboard({ onLogout }) {
   
   // Form state
   const [showForm, setShowForm] = useState(false)
-  const [username, setUsername] = useState('')
-  const [isAdmin, setIsAdmin] = useState(false)
-  const [generatedPassword, setGeneratedPassword] = useState('')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [userRole, setUserRole] = useState('user') // 'user', 'reviewer', 'admin'
+  const [selectedSites, setSelectedSites] = useState([])
   const [showPassword, setShowPassword] = useState(false)
   const [copied, setCopied] = useState(false)
+  
+  // Site management state
+  const [showSiteForm, setShowSiteForm] = useState(false)
+  const [siteName, setSiteName] = useState('')
+  const [siteDisplayName, setSiteDisplayName] = useState('')
+  
+  // User editing state
+  const [editingUser, setEditingUser] = useState(null)
+  const [editEmail, setEditEmail] = useState('')
+  const [editRole, setEditRole] = useState('user')
+  const [editSelectedSites, setEditSelectedSites] = useState([])
+  const [showEditForm, setShowEditForm] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   useEffect(() => {
     fetchUsers()
+    fetchSites()
+    fetchUserSites()
   }, [])
 
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
     try {
       setLoading(true)
-      const { data, error } = await supabase
+      const { data, error } = await supabaseAdmin
         .from('users')
         .select('*')
         .order('created_at', { ascending: false })
@@ -34,11 +53,46 @@ export default function AdminDashboard({ onLogout }) {
       if (error) throw error
       setUsers(data || [])
     } catch (err) {
+      console.error('Error fetching users:', err)
       setError(err.message)
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
+
+  const fetchSites = useCallback(async () => {
+    try {
+      const { data, error } = await supabaseAdmin
+        .from('sites')
+        .select('*')
+        .eq('is_active', true)
+        .order('name', { ascending: true })
+
+      if (error) throw error
+      setSites(data || [])
+    } catch (err) {
+      console.error('Error fetching sites:', err)
+      setError(err.message)
+    }
+  }, [])
+
+  const fetchUserSites = useCallback(async () => {
+    try {
+      const { data, error } = await supabaseAdmin
+        .from('user_sites')
+        .select(`
+          *,
+          sites!inner(name, display_name),
+          users!user_sites_user_id_fkey(email)
+        `)
+
+      if (error) throw error
+      setUserSites(data || [])
+    } catch (err) {
+      console.error('Error fetching user sites:', err)
+      setError(err.message)
+    }
+  }, [])
 
   const generatePassword = () => {
     const length = 12
@@ -47,50 +101,157 @@ export default function AdminDashboard({ onLogout }) {
     for (let i = 0; i < length; i++) {
       password += charset.charAt(Math.floor(Math.random() * charset.length))
     }
-    return password
+    setPassword(password)
+  }
+
+  const handleCreateSite = async (e) => {
+    e.preventDefault()
+    
+    if (!siteName.trim() || !siteDisplayName.trim()) {
+      setError('Site name and display name are required')
+      return
+    }
+
+    try {
+      const { data, error } = await supabaseAdmin
+        .from('sites')
+        .insert({
+          name: siteName.trim(),
+          display_name: siteDisplayName.trim(),
+          is_active: true
+        })
+        .select()
+        .single()
+
+      if (error) throw error
+
+      setSuccess(`Site "${siteDisplayName}" created successfully!`)
+      await fetchSites()
+      
+      // Reset form
+      setSiteName('')
+      setSiteDisplayName('')
+      setShowSiteForm(false)
+      
+      setTimeout(() => {
+        setSuccess(null)
+      }, 3000)
+    } catch (err) {
+      console.error('Create site error:', err)
+      setError(err.message || 'Failed to create site')
+    }
+  }
+
+  const handleSiteToggle = (siteId) => {
+    setSelectedSites(prev => 
+      prev.includes(siteId) 
+        ? prev.filter(id => id !== siteId)
+        : [...prev, siteId]
+    )
   }
 
   const handleCreateUser = async (e) => {
     e.preventDefault()
+    
+    // Prevent double submission
+    if (creating) return
+    
     setError(null)
     setSuccess(null)
     
-    if (!username.trim()) {
-      setError('Username is required')
+    if (!email.trim()) {
+      setError('Email is required')
+      return
+    }
+
+    if (!password.trim()) {
+      setError('Password is required')
+      return
+    }
+
+    if (password.length < 6) {
+      setError('Password must be at least 6 characters')
       return
     }
 
     setCreating(true)
     try {
-      const email = `${username}@${USERNAME_DOMAIN}`
-      const password = generatePassword()
+      console.log('Creating user:', email) // Debug log
       
-      // IMPORTANT: This will call your backend API or Edge Function
-      // For now, I'm showing you need to create an API endpoint
-      const response = await fetch('YOUR_API_ENDPOINT/create-user', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email,
-          password,
-          username,
-          is_admin: isAdmin
-        })
+      // Use Supabase Admin Auth API to create user directly
+      const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+        email: email.trim(),
+        password: password,
+        email_confirm: true, // Auto-confirm email
+        user_metadata: {
+          role: userRole,
+          is_admin: userRole === 'admin',
+          created_by_admin: true
+        }
       })
 
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.message || 'Failed to create user')
+      console.log('Auth response:', authData) // Debug log
+
+      if (authError) {
+        console.error('Auth error:', authError)
+        throw authError
       }
 
-      const data = await response.json()
+      if (!authData.user) {
+        throw new Error('Failed to create user - no user data returned')
+      }
 
-      setGeneratedPassword(password)
-      setSuccess(`User created successfully! Save the credentials below.`)
-      setUsername('')
-      setIsAdmin(false)
-      await fetchUsers()
+      // Rely on DB trigger to create/update public.users row; wait briefly to avoid race
+      await new Promise((resolve) => setTimeout(resolve, 400))
+
+      // Get the created user from the users table to get the correct ID
+      const { data: createdUser, error: userFetchError } = await supabaseAdmin
+        .from('users')
+        .select('id')
+        .eq('auth_user_id', authData.user.id)
+        .single()
+
+      if (userFetchError) {
+        console.error('Error fetching created user:', userFetchError)
+        throw new Error('Failed to fetch created user for site assignment')
+      }
+
+      // Assign sites to the user if any are selected
+      if (selectedSites.length > 0 && createdUser) {
+        // Get current admin user's ID from users table
+        const { data: currentUser } = await supabaseAdmin
+          .from('users')
+          .select('id')
+          .eq('auth_user_id', authData.user.id)
+          .single()
+
+        const siteAssignments = selectedSites.map(siteId => ({
+          user_id: createdUser.id, // Use the users table ID, not auth user ID
+          site_id: siteId,
+          assigned_by: currentUser?.id || createdUser.id // Use current admin's users table ID
+        }))
+
+        const { error: assignmentError } = await supabaseAdmin
+          .from('user_sites')
+          .insert(siteAssignments)
+
+        if (assignmentError) {
+          console.error('Site assignment error:', assignmentError)
+          // Don't fail the user creation, just log the error
+        }
+      }
+
+      setSuccess(`User created successfully! Email: ${email}${selectedSites.length > 0 ? ` with ${selectedSites.length} site(s) assigned` : ''}`)
+      
+      // Refresh the data
+      await Promise.all([fetchUsers(), fetchUserSites()])
+      
+      // Clear form after 3 seconds
+      setTimeout(() => {
+        resetForm()
+      }, 3000)
     } catch (err) {
+      console.error('Create user error:', err)
       setError(err.message || 'Failed to create user')
     } finally {
       setCreating(false)
@@ -99,7 +260,7 @@ export default function AdminDashboard({ onLogout }) {
 
   const copyPassword = async () => {
     try {
-      await navigator.clipboard.writeText(generatedPassword)
+      await navigator.clipboard.writeText(password)
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     } catch (err) {
@@ -109,131 +270,323 @@ export default function AdminDashboard({ onLogout }) {
 
   const resetForm = () => {
     setShowForm(false)
-    setUsername('')
-    setIsAdmin(false)
-    setGeneratedPassword('')
+    setEmail('')
+    setPassword('')
+    setUserRole('user')
+    setSelectedSites([])
     setShowPassword(false)
     setError(null)
     setSuccess(null)
   }
 
   const handleLogout = async () => {
-    if (typeof onLogout === 'function') {
-      onLogout()
-      return
-    }
     try {
       await supabase.auth.signOut()
-    } catch (_e) {
-      // swallow; Protected/AdminRoute will redirect on session change
+      navigate('/login')
+    } catch (err) {
+      console.error('Logout error:', err)
     }
+  }
+
+  const getUserRole = (user) => {
+    if (typeof user?.role === 'string') return user.role.toLowerCase()
+    if (typeof user?.is_admin === 'boolean') return user.is_admin ? 'admin' : 'user'
+    return 'user'
   }
 
   const getIsAdmin = (user) => {
-    if (typeof user?.is_admin === 'boolean') return user.is_admin
-    if (typeof user?.role === 'string') return user.role.toLowerCase() === 'admin'
-    return false
+    return getUserRole(user) === 'admin'
   }
 
   const getInitial = (user) => {
-    const name = user?.username || user?.email || 'U'
+    const name = user?.email || 'U'
     const first = String(name).trim().charAt(0)
     return first ? first.toUpperCase() : 'U'
   }
 
+  const getUserSites = (userId) => {
+    return userSites.filter(us => us.user_id === userId)
+  }
+
+  const getSiteName = (siteId) => {
+    const site = sites.find(s => s.id === siteId)
+    return site ? site.display_name : 'Unknown Site'
+  }
+
+  const handleRemoveSiteAssignment = async (userId, siteId) => {
+    try {
+      const { error } = await supabaseAdmin
+        .from('user_sites')
+        .delete()
+        .eq('user_id', userId)
+        .eq('site_id', siteId)
+
+      if (error) throw error
+
+      setSuccess('Site assignment removed successfully!')
+      await fetchUserSites()
+      
+      setTimeout(() => {
+        setSuccess(null)
+      }, 3000)
+    } catch (err) {
+      console.error('Remove site assignment error:', err)
+      setError(err.message || 'Failed to remove site assignment')
+    }
+  }
+
+  const handleEditUser = (user) => {
+    setEditingUser(user)
+    setEditEmail(user.email)
+    setEditRole(getUserRole(user))
+    setEditSelectedSites(getUserSites(user.id).map(us => us.site_id))
+    setShowEditForm(true)
+    setError(null)
+    setSuccess(null)
+  }
+
+  const handleUpdateUser = async (e) => {
+    e.preventDefault()
+    
+    if (!editingUser) return
+    
+    setCreating(true)
+    setError(null)
+    setSuccess(null)
+
+    try {
+      // Update user role in users table
+      const { error: updateError } = await supabaseAdmin
+        .from('users')
+        .update({
+          role: editRole,
+          is_admin: editRole === 'admin',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', editingUser.id)
+
+      if (updateError) throw updateError
+
+      // Update site assignments
+      // First, remove all existing site assignments
+      const { error: deleteError } = await supabaseAdmin
+        .from('user_sites')
+        .delete()
+        .eq('user_id', editingUser.id)
+
+      if (deleteError) throw deleteError
+
+      // Then add new site assignments
+      if (editSelectedSites.length > 0) {
+        const siteAssignments = editSelectedSites.map(siteId => ({
+          user_id: editingUser.id,
+          site_id: siteId,
+          assigned_by: editingUser.id // For now, use the same user
+        }))
+
+        const { error: assignmentError } = await supabaseAdmin
+          .from('user_sites')
+          .insert(siteAssignments)
+
+        if (assignmentError) throw assignmentError
+      }
+
+      setSuccess(`User updated successfully!`)
+      await Promise.all([fetchUsers(), fetchUserSites()])
+      
+      // Reset edit form
+      setShowEditForm(false)
+      setEditingUser(null)
+      setEditEmail('')
+      setEditRole('user')
+      setEditSelectedSites([])
+      
+      setTimeout(() => {
+        setSuccess(null)
+      }, 3000)
+    } catch (err) {
+      console.error('Update user error:', err)
+      setError(err.message || 'Failed to update user')
+    } finally {
+      setCreating(false)
+    }
+  }
+
+  const handleDeleteUser = async (user) => {
+    if (!confirm(`Are you sure you want to delete user "${user.email}"? This action cannot be undone.`)) {
+      return
+    }
+
+    setDeleting(true)
+    setError(null)
+    setSuccess(null)
+
+    try {
+      // First delete from user_sites table
+      const { error: sitesError } = await supabaseAdmin
+        .from('user_sites')
+        .delete()
+        .eq('user_id', user.id)
+
+      if (sitesError) throw sitesError
+
+      // Then delete from users table
+      const { error: userError } = await supabaseAdmin
+        .from('users')
+        .delete()
+        .eq('id', user.id)
+
+      if (userError) throw userError
+
+      // Finally delete from auth.users
+      const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(user.auth_user_id)
+
+      if (authError) throw authError
+
+      setSuccess(`User "${user.email}" deleted successfully!`)
+      await Promise.all([fetchUsers(), fetchUserSites()])
+      
+      setTimeout(() => {
+        setSuccess(null)
+      }, 3000)
+    } catch (err) {
+      console.error('Delete user error:', err)
+      setError(err.message || 'Failed to delete user')
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  const handleEditSiteToggle = (siteId) => {
+    setEditSelectedSites(prev => 
+      prev.includes(siteId) 
+        ? prev.filter(id => id !== siteId)
+        : [...prev, siteId]
+    )
+  }
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100 dark:from-gray-900 dark:via-gray-950 dark:to-black">
-      {/* Header */}
-      <header className="border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/70 backdrop-blur-xl">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+    <div className="min-h-screen bg-background">
+      {/* Header - Matching main app style */}
+      <header className="bg-card border-b border-border p-6">
+        <div className="w-full flex justify-between items-center">
           <div className="flex items-center gap-3">
-            <div className="size-10 rounded-xl bg-black text-white grid place-items-center font-bold tracking-wider">
-              HiQ
+            <div className="relative">
+              <div className="size-10 rounded-xl bg-black text-white grid place-items-center font-bold tracking-wider">
+                HiQ
+              </div>
+              <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full" />
             </div>
             <div>
-              <h1 className="text-xl font-semibold">Admin Dashboard</h1>
-              <p className="text-sm text-slate-500 dark:text-slate-400">User Management</p>
+              <h1 className="text-2xl font-semibold text-foreground mb-2">Admin Dashboard</h1>
+              <p className="text-muted-foreground">User & Site Management</p>
             </div>
           </div>
-          <button
-            onClick={handleLogout}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm text-red-600 border border-red-300 hover:bg-red-50 dark:border-red-700 dark:hover:bg-red-900/30 transition-colors"
-          >
-            <LogOut className="w-4 h-4" />
-            Logout
-          </button>
+
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleLogout}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-red-600 border border-red-300 hover:bg-red-50 dark:border-red-700 dark:hover:bg-red-900/30 transition-colors"
+            >
+              <LogOut className="w-4 h-4" />
+              Logout
+            </button>
+          </div>
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-6 py-8">
-        {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6">
-            <div className="flex items-center gap-3">
+      <main className="flex-1 overflow-auto">
+        <div className="max-w-[76rem] mx-auto p-6 space-y-6">
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 lg:gap-6">
+          <div className="bg-card/70 backdrop-blur-sm rounded-2xl border border-border p-6 shadow-sm hover:shadow-md transition-shadow">
+            <div className="flex items-center gap-4">
               <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-xl">
                 <Users className="w-6 h-6 text-blue-600 dark:text-blue-400" />
               </div>
               <div>
-                <p className="text-sm text-slate-500 dark:text-slate-400">Total Users</p>
-                <p className="text-2xl font-bold">{users.length}</p>
+                <p className="text-sm font-medium text-muted-foreground">Total Users</p>
+                <p className="text-3xl font-bold text-foreground">{users.length}</p>
               </div>
             </div>
           </div>
 
-          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6">
-            <div className="flex items-center gap-3">
-              <div className="p-3 bg-green-100 dark:bg-green-900/30 rounded-xl">
-                <Shield className="w-6 h-6 text-green-600 dark:text-green-400" />
-              </div>
-              <div>
-                <p className="text-sm text-slate-500 dark:text-slate-400">Admins</p>
-                <p className="text-2xl font-bold">{users.filter(u => getIsAdmin(u)).length}</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6">
-            <div className="flex items-center gap-3">
+          <div className="bg-card/70 backdrop-blur-sm rounded-2xl border border-border p-6 shadow-sm hover:shadow-md transition-shadow">
+            <div className="flex items-center gap-4">
               <div className="p-3 bg-purple-100 dark:bg-purple-900/30 rounded-xl">
-                <UserPlus className="w-6 h-6 text-purple-600 dark:text-purple-400" />
+                <Shield className="w-6 h-6 text-purple-600 dark:text-purple-400" />
               </div>
               <div>
-                <p className="text-sm text-slate-500 dark:text-slate-400">Regular Users</p>
-                <p className="text-2xl font-bold">{users.filter(u => !getIsAdmin(u)).length}</p>
+                <p className="text-sm font-medium text-muted-foreground">Admins</p>
+                <p className="text-3xl font-bold text-foreground">{users.filter(u => getIsAdmin(u)).length}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-card/70 backdrop-blur-sm rounded-2xl border border-border p-6 shadow-sm hover:shadow-md transition-shadow">
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-green-100 dark:bg-green-900/30 rounded-xl">
+                <Users className="w-6 h-6 text-green-600 dark:text-green-400" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Reviewers</p>
+                <p className="text-3xl font-bold text-foreground">{users.filter(u => getUserRole(u) === 'reviewer').length}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-card/70 backdrop-blur-sm rounded-2xl border border-border p-6 shadow-sm hover:shadow-md transition-shadow">
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-gray-100 dark:bg-gray-900/30 rounded-xl">
+                <UserPlus className="w-6 h-6 text-gray-600 dark:text-gray-400" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Regular Users</p>
+                <p className="text-3xl font-bold text-foreground">{users.filter(u => getUserRole(u) === 'user').length}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-card/70 backdrop-blur-sm rounded-2xl border border-border p-6 shadow-sm hover:shadow-md transition-shadow">
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-orange-100 dark:bg-orange-900/30 rounded-xl">
+                <MapPin className="w-6 h-6 text-orange-600 dark:text-orange-400" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Active Sites</p>
+                <p className="text-3xl font-bold text-foreground">{sites.length}</p>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Notice about backend requirement */}
-        <div className="mb-6 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4">
-          <div className="flex items-start gap-2">
-            <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-400 mt-0.5" />
-            <div className="text-sm">
-              <p className="font-medium text-amber-900 dark:text-amber-200 mb-1">Backend API Required</p>
-              <p className="text-amber-700 dark:text-amber-300">
-                To create users, you need to set up a backend API endpoint that uses the Supabase service role key. 
-                The "Add New User" feature requires this to work securely.
-              </p>
-            </div>
-          </div>
+        {/* Action Buttons */}
+        <div className="flex flex-col sm:flex-row gap-3">
+          {!showForm && (
+            <button
+              onClick={() => setShowForm(true)}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-black text-white font-medium shadow-sm hover:bg-black/90 active:scale-[0.99] transition-all"
+            >
+              <UserPlus className="w-5 h-5" />
+              Add New User
+            </button>
+          )}
+          
+          {!showSiteForm && (
+            <button
+              onClick={() => setShowSiteForm(true)}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-border hover:bg-muted active:scale-[0.99] transition-all"
+            >
+              <MapPin className="w-5 h-5" />
+              Add New Site
+            </button>
+          )}
         </div>
-
-        {/* Add User Button */}
-        {!showForm && (
-          <button
-            onClick={() => setShowForm(true)}
-            className="mb-6 inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-black text-white font-medium shadow-sm hover:bg-black/90 transition"
-          >
-            <UserPlus className="w-5 h-5" />
-            Add New User
-          </button>
-        )}
 
         {/* Create User Form */}
         {showForm && (
-          <div className="mb-8 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6">
-            <h2 className="text-lg font-semibold mb-4">Create New User</h2>
+          <div className="bg-card/70 backdrop-blur-sm rounded-2xl border border-border p-6 shadow-sm">
+            <h2 className="text-xl font-semibold text-foreground mb-6">Create New User</h2>
             
             {error && (
               <div className="mb-4 flex items-start gap-2 rounded-xl border border-red-200/60 bg-red-50/80 text-red-800 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300 px-3 py-2">
@@ -242,173 +595,524 @@ export default function AdminDashboard({ onLogout }) {
               </div>
             )}
 
-            {success && generatedPassword && (
-              <div className="mb-4 space-y-3">
-                <div className="flex items-start gap-2 rounded-xl border border-green-200/60 bg-green-50/80 text-green-800 dark:border-green-900/50 dark:bg-green-950/40 dark:text-green-300 px-3 py-2">
-                  <CheckCircle className="mt-0.5 shrink-0" size={18} />
-                  <span className="text-sm">{success}</span>
-                </div>
-                
-                <div className="bg-slate-50 dark:bg-slate-800 rounded-xl p-4 space-y-3">
-                  <div>
-                    <label className="text-xs font-medium text-slate-600 dark:text-slate-400">Username</label>
-                    <p className="font-mono text-sm mt-1">{username || 'N/A'}</p>
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium text-slate-600 dark:text-slate-400">Password</label>
-                    <div className="flex items-center gap-2 mt-1">
-                      <code className="flex-1 font-mono text-sm bg-white dark:bg-slate-900 px-3 py-2 rounded-lg border">
-                        {showPassword ? generatedPassword : '••••••••••••'}
-                      </code>
-                      <button
-                        onClick={() => setShowPassword(!showPassword)}
-                        className="p-2 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700"
-                      >
-                        {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                      </button>
-                      <button
-                        onClick={copyPassword}
-                        className="p-2 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700"
-                      >
-                        {copied ? <Check size={18} className="text-green-600" /> : <Copy size={18} />}
-                      </button>
-                    </div>
-                  </div>
-                  <p className="text-xs text-amber-600 dark:text-amber-400">⚠️ Save these credentials now! They won't be shown again.</p>
-                </div>
+            {success && (
+              <div className="mb-4 flex items-start gap-2 rounded-xl border border-green-200/60 bg-green-50/80 text-green-800 dark:border-green-900/50 dark:bg-green-950/40 dark:text-green-300 px-3 py-2">
+                <CheckCircle className="mt-0.5 shrink-0" size={18} />
+                <span className="text-sm">{success}</span>
               </div>
             )}
 
-            {!generatedPassword && (
-              <form onSubmit={handleCreateUser} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium mb-2">Username</label>
-                  <input
-                    type="text"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-4 focus:ring-black/10 focus:border-black bg-white dark:bg-slate-900 dark:border-slate-800"
-                    placeholder="Enter username"
-                    required
-                  />
-                  <p className="text-xs text-slate-500 mt-1">Will be converted to {username}@{USERNAME_DOMAIN}</p>
-                </div>
+            <form onSubmit={handleCreateUser} className="space-y-6">
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-2">Email</label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full px-3 py-2.5 rounded-xl border border-border focus:outline-none focus:ring-4 focus:ring-black/10 focus:border-black bg-background text-foreground transition-colors"
+                  placeholder="user@example.com"
+                  required
+                  disabled={creating}
+                />
+              </div>
 
-                <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    id="isAdmin"
-                    checked={isAdmin}
-                    onChange={(e) => setIsAdmin(e.target.checked)}
-                    className="w-4 h-4 rounded"
-                  />
-                  <label htmlFor="isAdmin" className="text-sm font-medium">Make this user an admin</label>
-                </div>
-
-                <div className="flex gap-3">
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-2">Password</label>
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="w-full px-3 py-2.5 pr-10 rounded-xl border border-border focus:outline-none focus:ring-4 focus:ring-black/10 focus:border-black bg-background text-foreground transition-colors"
+                      placeholder="Enter password"
+                      required
+                      minLength={6}
+                      disabled={creating}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-lg hover:bg-muted transition"
+                    >
+                      {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
+                  </div>
                   <button
-                    type="submit"
+                    type="button"
+                    onClick={generatePassword}
+                    className="px-4 py-2.5 rounded-xl border border-border hover:bg-muted active:scale-[0.99] transition-all whitespace-nowrap"
                     disabled={creating}
-                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-black text-white font-medium shadow-sm hover:bg-black/90 disabled:opacity-60"
                   >
-                    {creating ? (
-                      <>
-                        <Loader2 className="animate-spin" size={18} />
-                        Creating...
-                      </>
-                    ) : (
-                      <>
-                        <UserPlus size={18} />
-                        Create User
-                      </>
-                    )}
+                    Generate
                   </button>
                   <button
                     type="button"
-                    onClick={resetForm}
-                    className="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800"
+                    onClick={copyPassword}
+                    className="p-2.5 rounded-xl border border-border hover:bg-muted active:scale-[0.99] transition-all"
+                    disabled={!password || creating}
                   >
-                    Cancel
+                    {copied ? <Check size={18} className="text-green-600" /> : <Copy size={18} />}
                   </button>
                 </div>
-              </form>
+                <p className="text-xs text-muted-foreground mt-1">Minimum 6 characters</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-2">Role</label>
+                <select
+                  value={userRole}
+                  onChange={(e) => setUserRole(e.target.value)}
+                  className="w-full px-3 py-2.5 rounded-xl border border-border focus:outline-none focus:ring-4 focus:ring-black/10 focus:border-black bg-background text-foreground transition-colors"
+                  disabled={creating}
+                >
+                  <option value="user">User</option>
+                  <option value="reviewer">Reviewer</option>
+                  <option value="admin">Admin</option>
+                </select>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {userRole === 'user' && 'Can access basic features'}
+                  {userRole === 'reviewer' && 'Can review and moderate content'}
+                  {userRole === 'admin' && 'Full administrative access'}
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-2">Assign Sites (Optional)</label>
+                <div className="space-y-2 max-h-32 overflow-y-auto border border-border rounded-xl p-3">
+                  {sites.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No sites available. Create sites first.</p>
+                  ) : (
+                    sites.map((site) => (
+                      <label key={site.id} className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={selectedSites.includes(site.id)}
+                          onChange={() => handleSiteToggle(site.id)}
+                          className="rounded border-border"
+                          disabled={creating}
+                        />
+                        <span className="text-sm text-foreground">{site.display_name}</span>
+                        <span className="text-xs text-muted-foreground">({site.name})</span>
+                      </label>
+                    ))
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Select which sites this user should have access to
+                </p>
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-3">
+                <button
+                  type="submit"
+                  disabled={creating}
+                  className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-black text-white font-medium shadow-sm hover:bg-black/90 disabled:opacity-60 active:scale-[0.99] transition-all"
+                >
+                  {creating ? (
+                    <>
+                      <Loader2 className="animate-spin" size={18} />
+                      Creating...
+                    </>
+                  ) : (
+                    <>
+                      <UserPlus size={18} />
+                      Create User
+                    </>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={resetForm}
+                  className="px-4 py-2.5 rounded-xl border border-border hover:bg-muted active:scale-[0.99] transition-all"
+                  disabled={creating}
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
+
+        {/* Create Site Form */}
+        {showSiteForm && (
+          <div className="bg-card/70 backdrop-blur-sm rounded-2xl border border-border p-6 shadow-sm">
+            <h2 className="text-xl font-semibold text-foreground mb-6">Create New Site</h2>
+            
+            {error && (
+              <div className="mb-4 flex items-start gap-2 rounded-xl border border-red-200/60 bg-red-50/80 text-red-800 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300 px-3 py-2">
+                <AlertCircle className="mt-0.5 shrink-0" size={18} />
+                <span className="text-sm">{error}</span>
+              </div>
             )}
 
-            {generatedPassword && (
-              <button
-                onClick={resetForm}
-                className="mt-4 px-4 py-2.5 rounded-xl bg-black text-white font-medium"
-              >
-                Add Another User
-              </button>
+            {success && (
+              <div className="mb-4 flex items-start gap-2 rounded-xl border border-green-200/60 bg-green-50/80 text-green-800 dark:border-green-900/50 dark:bg-green-950/40 dark:text-green-300 px-3 py-2">
+                <CheckCircle className="mt-0.5 shrink-0" size={18} />
+                <span className="text-sm">{success}</span>
+              </div>
             )}
+
+            <form onSubmit={handleCreateSite} className="space-y-6">
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-2">Site Name</label>
+                <input
+                  type="text"
+                  value={siteName}
+                  onChange={(e) => setSiteName(e.target.value)}
+                  className="w-full px-3 py-2.5 rounded-xl border border-border focus:outline-none focus:ring-4 focus:ring-black/10 focus:border-black bg-background text-foreground transition-colors"
+                  placeholder="site-name"
+                  required
+                />
+                <p className="text-xs text-muted-foreground mt-1">Internal identifier (lowercase, no spaces)</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-2">Display Name</label>
+                <input
+                  type="text"
+                  value={siteDisplayName}
+                  onChange={(e) => setSiteDisplayName(e.target.value)}
+                  className="w-full px-3 py-2.5 rounded-xl border border-border focus:outline-none focus:ring-4 focus:ring-black/10 focus:border-black bg-background text-foreground transition-colors"
+                  placeholder="Site Display Name"
+                  required
+                />
+                <p className="text-xs text-muted-foreground mt-1">Human-readable name shown in the interface</p>
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-3">
+                <button
+                  type="submit"
+                  className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-black text-white font-medium shadow-sm hover:bg-black/90 active:scale-[0.99] transition-all"
+                >
+                  <MapPin size={18} />
+                  Create Site
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowSiteForm(false)
+                    setSiteName('')
+                    setSiteDisplayName('')
+                    setError(null)
+                    setSuccess(null)
+                  }}
+                  className="px-4 py-2.5 rounded-xl border border-border hover:bg-muted active:scale-[0.99] transition-all"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
+
+        {/* Edit User Form */}
+        {showEditForm && editingUser && (
+          <div className="bg-card/70 backdrop-blur-sm rounded-2xl border border-border p-6 shadow-sm">
+            <h2 className="text-xl font-semibold text-foreground mb-6">Edit User: {editingUser.email}</h2>
+            
+            {error && (
+              <div className="mb-4 flex items-start gap-2 rounded-xl border border-red-200/60 bg-red-50/80 text-red-800 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300 px-3 py-2">
+                <AlertCircle className="mt-0.5 shrink-0" size={18} />
+                <span className="text-sm">{error}</span>
+              </div>
+            )}
+
+            {success && (
+              <div className="mb-4 flex items-start gap-2 rounded-xl border border-green-200/60 bg-green-50/80 text-green-800 dark:border-green-900/50 dark:bg-green-950/40 dark:text-green-300 px-3 py-2">
+                <CheckCircle className="mt-0.5 shrink-0" size={18} />
+                <span className="text-sm">{success}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleUpdateUser} className="space-y-6">
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-2">Email</label>
+                <input
+                  type="email"
+                  value={editEmail}
+                  disabled
+                  className="w-full px-3 py-2.5 rounded-xl border border-border bg-muted text-muted-foreground cursor-not-allowed"
+                />
+                <p className="text-xs text-muted-foreground mt-1">Email cannot be changed</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-2">Role</label>
+                <select
+                  value={editRole}
+                  onChange={(e) => setEditRole(e.target.value)}
+                  className="w-full px-3 py-2.5 rounded-xl border border-border focus:outline-none focus:ring-4 focus:ring-black/10 focus:border-black bg-background text-foreground transition-colors"
+                  disabled={creating}
+                >
+                  <option value="user">User</option>
+                  <option value="reviewer">Reviewer</option>
+                  <option value="admin">Admin</option>
+                </select>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {editRole === 'user' && 'Can access basic features'}
+                  {editRole === 'reviewer' && 'Can review and moderate content'}
+                  {editRole === 'admin' && 'Full administrative access'}
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-2">Assign Sites</label>
+                <div className="space-y-2 max-h-32 overflow-y-auto border border-border rounded-xl p-3">
+                  {sites.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No sites available.</p>
+                  ) : (
+                    sites.map((site) => (
+                      <label key={site.id} className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={editSelectedSites.includes(site.id)}
+                          onChange={() => handleEditSiteToggle(site.id)}
+                          className="rounded border-border"
+                          disabled={creating}
+                        />
+                        <span className="text-sm text-foreground">{site.display_name}</span>
+                        <span className="text-xs text-muted-foreground">({site.name})</span>
+                      </label>
+                    ))
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Select which sites this user should have access to
+                </p>
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-3">
+                <button
+                  type="submit"
+                  disabled={creating}
+                  className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-black text-white font-medium shadow-sm hover:bg-black/90 disabled:opacity-60 active:scale-[0.99] transition-all"
+                >
+                  {creating ? (
+                    <>
+                      <Loader2 className="animate-spin" size={18} />
+                      Updating...
+                    </>
+                  ) : (
+                    <>
+                      <Edit size={18} />
+                      Update User
+                    </>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowEditForm(false)
+                    setEditingUser(null)
+                    setEditEmail('')
+                    setEditRole('user')
+                    setEditSelectedSites([])
+                    setError(null)
+                    setSuccess(null)
+                  }}
+                  className="px-4 py-2.5 rounded-xl border border-border hover:bg-muted active:scale-[0.99] transition-all"
+                  disabled={creating}
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
           </div>
         )}
 
         {/* Users Table */}
-        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
-          <div className="p-6 border-b border-slate-200 dark:border-slate-800">
-            <h2 className="text-lg font-semibold">All Users</h2>
+        <div className="bg-card/70 backdrop-blur-sm rounded-2xl border border-border overflow-hidden shadow-sm">
+          <div className="p-6 border-b border-border">
+            <h2 className="text-xl font-semibold text-foreground">All Users</h2>
           </div>
 
           {loading ? (
             <div className="p-8 text-center">
-              <Loader2 className="w-8 h-8 animate-spin mx-auto text-slate-400" />
+              <Loader2 className="w-8 h-8 animate-spin mx-auto text-muted-foreground" />
             </div>
           ) : users.length === 0 ? (
-            <div className="p-8 text-center text-slate-500">
+            <div className="p-8 text-center text-muted-foreground">
               No users found. Create your first user above.
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-slate-50 dark:bg-slate-800/50">
+            <div className="overflow-x-auto -mx-6 sm:mx-0">
+              <table className="w-full min-w-[600px]">
+                <thead className="bg-muted/30">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                      Username
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      User
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                       Email
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                       Role
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                      Created
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+                     <th className="px-6 py-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                       Sites
+                     </th>
+                     <th className="px-6 py-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                       Created
+                     </th>
+                     <th className="px-6 py-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                       Actions
+                     </th>
+                   </tr>
+                 </thead>
+                <tbody className="divide-y divide-border/50">
                   {users.map((user) => (
-                    <tr key={user.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/30">
+                    <tr key={user.id} className="hover:bg-muted/30 transition">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center gap-2">
                           <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-sm font-medium">
                             {getInitial(user)}
                           </div>
-                          <span className="font-medium">{user?.username || user?.email || 'Unknown'}</span>
+                          <span className="font-medium text-foreground">{user?.email || 'Unknown'}</span>
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
                           <Mail size={14} />
                           {user?.email || '-'}
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        {getIsAdmin(user) ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300">
-                            <Shield size={12} />
-                            Admin
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300">
-                            User
-                          </span>
-                        )}
+                        {(() => {
+                          const role = getUserRole(user)
+                          if (role === 'admin') {
+                            return (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300">
+                                <Shield size={12} />
+                                Admin
+                              </span>
+                            )
+                          } else if (role === 'reviewer') {
+                            return (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+                                <Users size={12} />
+                                Reviewer
+                              </span>
+                            )
+                          } else {
+                            return (
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-muted text-foreground">
+                                User
+                              </span>
+                            )
+                          }
+                        })()}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-400">
-                        {user?.created_at ? new Date(user.created_at).toLocaleDateString() : '-'}
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex flex-wrap gap-1">
+                          {getUserSites(user.id).length === 0 ? (
+                            <span className="text-xs text-muted-foreground">No sites assigned</span>
+                          ) : (
+                            getUserSites(user.id).map((userSite) => (
+                              <span
+                                key={userSite.site_id}
+                                className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300"
+                              >
+                                <MapPin size={10} />
+                                {getSiteName(userSite.site_id)}
+                                <button
+                                  onClick={() => handleRemoveSiteAssignment(user.id, userSite.site_id)}
+                                  className="ml-1 hover:bg-orange-200 dark:hover:bg-orange-800 rounded-full p-0.5 transition"
+                                  title="Remove site assignment"
+                                >
+                                  <X size={8} />
+                                </button>
+                              </span>
+                            ))
+                          )}
+                        </div>
+                      </td>
+                       <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">
+                         {user?.created_at ? new Date(user.created_at).toLocaleDateString() : '-'}
+                       </td>
+                       <td className="px-6 py-4 whitespace-nowrap">
+                         <div className="flex items-center gap-2">
+                           <button
+                             onClick={() => handleEditUser(user)}
+                             className="p-2 rounded-lg text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors"
+                             title="Edit user"
+                           >
+                             <Edit size={16} />
+                           </button>
+                           <button
+                             onClick={() => handleDeleteUser(user)}
+                             disabled={deleting}
+                             className="p-2 rounded-lg text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors disabled:opacity-50"
+                             title="Delete user"
+                           >
+                             {deleting ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
+                           </button>
+                         </div>
+                       </td>
+                     </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        {/* Sites Table */}
+        <div className="bg-card/70 backdrop-blur-sm rounded-2xl border border-border overflow-hidden shadow-sm">
+          <div className="p-6 border-b border-border">
+            <h2 className="text-xl font-semibold text-foreground">All Sites</h2>
+          </div>
+
+          {sites.length === 0 ? (
+            <div className="p-8 text-center text-muted-foreground">
+              No sites found. Create your first site above.
+            </div>
+          ) : (
+            <div className="overflow-x-auto -mx-6 sm:mx-0">
+              <table className="w-full min-w-[500px]">
+                <thead className="bg-muted/30">
+                  <tr>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      Site
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      Name
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      Status
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      Created
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border/50">
+                  {sites.map((site) => (
+                    <tr key={site.id} className="hover:bg-muted/30 transition">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center text-white text-sm font-medium">
+                            <MapPin size={14} />
+                          </div>
+                          <span className="font-medium text-foreground">{site.display_name}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <code className="px-2 py-1 bg-muted rounded text-xs">{site.name}</code>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                          site.is_active 
+                            ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
+                            : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
+                        }`}>
+                          {site.is_active ? 'Active' : 'Inactive'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">
+                        {site.created_at ? new Date(site.created_at).toLocaleDateString() : '-'}
                       </td>
                     </tr>
                   ))}
@@ -416,6 +1120,7 @@ export default function AdminDashboard({ onLogout }) {
               </table>
             </div>
           )}
+        </div>
         </div>
       </main>
     </div>
