@@ -41,13 +41,7 @@ export default function ReportsTable() {
             // Refetch to get full report with relations
             fetchReports()
           } else if (payload.eventType === 'UPDATE') {
-            setReports(prev =>
-              prev.map(report =>
-                report.id === payload.new.id
-                  ? { ...report, ...payload.new }
-                  : report
-              )
-            )
+            fetchReportById(payload.new.id)
           } else if (payload.eventType === 'DELETE') {
             setReports(prev => prev.filter(report => report.id !== payload.old.id))
           }
@@ -150,6 +144,28 @@ export default function ReportsTable() {
       setError(err.message)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const fetchReportById = async (id) => {
+    try {
+      const { data, error } = await supabase
+        .from('reports')
+        .select(`
+          *,
+          domains (id, domain_name, status),
+          uploaded_by_user:users!reports_uploaded_by_fkey(email),
+          reviewed_by_user:users!reports_reviewed_by_fkey(email),
+          site:sites(name, display_name)
+        `)
+        .eq('id', id)
+        .single()
+
+      if (error) throw error
+
+      setReports(prev => prev.map(r => (r.id === id ? data : r)))
+    } catch (err) {
+      console.error('Error fetching updated report:', err)
     }
   }
 
@@ -271,6 +287,11 @@ export default function ReportsTable() {
                         {report.reviewed_at && (
                           <p className="text-xs text-muted-foreground mt-1">
                             Reviewed: {new Date(report.reviewed_at).toLocaleDateString()}
+                          </p>
+                        )}
+                        {report.reviewed_by_user && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Reviewed by: <span className="font-medium text-foreground">{report.reviewed_by_user.email}</span>
                           </p>
                         )}
                       </div>
