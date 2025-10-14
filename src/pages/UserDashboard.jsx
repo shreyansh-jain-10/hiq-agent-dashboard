@@ -2,10 +2,12 @@ import { useState, useEffect } from 'react'
 import Sidebar from '@/components/Sidebar'
 import FileUpload from '@/components/FileUpload'
 import ResponseDisplay from '@/components/ResponseDisplay'
+import ReportsTable from '@/components/ReportsTable'
 import '@/App.css'
 import { Moon, Sun, LogOut, Bug } from 'lucide-react'
 import BugReport from '@/pages/BugReport'
 import { supabase } from '@/lib/supabaseClient'
+import { useAuthSession } from '@/hooks/useAuthSession'
 
 function UserDashboard() {
   const [selectedAgent, setSelectedAgent] = useState(null)
@@ -13,6 +15,7 @@ function UserDashboard() {
   const [uploadedFileName, setUploadedFileName] = useState(null)
   const [theme, setTheme] = useState('light')
   const [showBugForm, setShowBugForm] = useState(false)
+  const { userRole } = useAuthSession()
 
   useEffect(() => {
     if (theme === 'dark') document.documentElement.classList.add('dark')
@@ -25,16 +28,20 @@ function UserDashboard() {
     setUploadedFileName(null)
     setShowBugForm(false) 
   }
+  
   const handleResponse = ({ result, fileName }) => {
     setResponse(result)
     setUploadedFileName(fileName)
     setShowBugForm(false) 
   }
+  
   const handleThemeChange = (newTheme) => setTheme(newTheme)
 
   const handleLogout = async () => {
     await supabase.auth.signOut()
   }
+
+  const isReviewer = userRole === 'reviewer'
 
   return (
     <div className="flex h-screen bg-background">
@@ -60,7 +67,10 @@ function UserDashboard() {
                     HiQ Agent Testing Dashboard
                   </h1>
                   <p className="text-muted-foreground">
-                    Select an agent from the sidebar to begin testing
+                    {isReviewer 
+                      ? 'Review and approve reports from your assigned sites'
+                      : 'Select an agent from the sidebar to begin testing'
+                    }
                   </p>
                 </>
               )}
@@ -97,14 +107,26 @@ function UserDashboard() {
         {/* Content */}
         <main className="flex-1 overflow-auto">
           <div className="max-w-[76rem] mx-auto p-6 space-y-6">
+            {/* File Upload Section */}
             <div className={[!response ? 'min-h-[60vh] flex items-center justify-center' : ''].join(' ')}>
               <FileUpload agent={selectedAgent} onResponse={handleResponse} />
             </div>
+            
+            {/* Response Display */}
             {response && (
               <div className="bg-card border rounded-lg p-6 max-w-6xl mx-auto">
                 <ResponseDisplay response={response} fileName={uploadedFileName} />
               </div>
             )}
+
+            {/* Reports Table - Show for reviewers */}
+            {isReviewer && (
+              <div className="mt-8">
+                <ReportsTable />
+              </div>
+            )}
+
+            {/* Bug Report Form */}
             {showBugForm && (
               <BugReport
                 selectedAgent={selectedAgent}
@@ -120,5 +142,3 @@ function UserDashboard() {
 }
 
 export default UserDashboard
-
-

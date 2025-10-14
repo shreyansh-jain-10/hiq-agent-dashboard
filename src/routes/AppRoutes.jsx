@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom'
 
 // Lazy pages/components
 const UserDashboard = lazy(() => import('@/pages/UserDashboard.jsx'))
+const ReportDetails = lazy(() => import('@/pages/ReportDetails.jsx'))
 const Login = lazy(() => import('@/pages/Login.jsx'))
 const ForgotPassword = lazy(() => import('@/pages/ForgotPassword.jsx'))
 const ResetPassword = lazy(() => import('@/pages/ResetPassword.jsx'))
@@ -29,7 +30,8 @@ export default function AppRoutes() {
           {/* PROTECTED ROUTES - Require authentication */}
           <Route element={<ProtectedRoute />}> 
             <Route path="/" element={<RoleBasedHome />} />
-            <Route path="/app" element={<UserDashboard />} /> {/* UserDashboard */} 
+            <Route path="/app" element={<UserDashboard />} />
+            <Route path="/app/report/:reportId" element={<ReportDetails />} />
           </Route>
 
           {/* ADMIN ROUTES - Require admin role */}
@@ -41,5 +43,3 @@ export default function AppRoutes() {
     </BrowserRouter>
   )
 }
-
-
