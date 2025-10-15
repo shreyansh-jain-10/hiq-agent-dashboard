@@ -1,13 +1,17 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabaseClient'
-import { CheckCircle, XCircle, Clock, FileText, AlertCircle, Loader2, ChevronRight } from 'lucide-react'
+import { CheckCircle, XCircle, Clock, FileText, AlertCircle, Loader2, ChevronRight, Filter, ChevronLeft, ChevronDown, BarChart3, MapPin, Upload, CheckCircle2, Clock3 } from 'lucide-react'
 
 export default function ReportsTable() {
   const [reports, setReports] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [assignedSiteIds, setAssignedSiteIds] = useState([])
+  const [assignedSites, setAssignedSites] = useState([])
+  const [selectedSiteId, setSelectedSiteId] = useState('all')
+  const [currentPage, setCurrentPage] = useState(1)
+  const itemsPerPage = 10
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -19,6 +23,11 @@ export default function ReportsTable() {
       fetchReports()
     }
   }, [assignedSiteIds])
+
+  // Reset pagination when filter changes
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [selectedSiteId])
 
   useEffect(() => {
     if (assignedSiteIds.length === 0) return
@@ -103,12 +112,19 @@ export default function ReportsTable() {
         .single()
       
       if (userData) {
-        const { data: sites } = await supabase
+        const { data: userSites } = await supabase
           .from('user_sites')
-          .select('site_id')
+          .select(`
+            site_id,
+            sites!inner(id, name, display_name)
+          `)
           .eq('user_id', userData.id)
         
-        setAssignedSiteIds(sites?.map(s => s.site_id) || [])
+        const siteIds = userSites?.map(s => s.site_id) || []
+        const sites = userSites?.map(s => s.sites) || []
+        
+        setAssignedSiteIds(siteIds)
+        setAssignedSites(sites)
       }
     } catch (err) {
       console.error('Error getting user:', err)
@@ -199,6 +215,96 @@ export default function ReportsTable() {
     navigate(`/app/report/${reportId}`)
   }
 
+  // Client-side filtering function
+  const getFilteredReports = () => {
+    if (!reports || !Array.isArray(reports)) {
+      return []
+    }
+    if (selectedSiteId === 'all') {
+      return reports
+    }
+    return reports.filter(report => report.site_id === selectedSiteId)
+  }
+
+  const filteredReports = getFilteredReports()
+  
+  // Metrics calculations
+  const calculateMetrics = () => {
+    try {
+      if (!reports || !Array.isArray(reports)) {
+        return {
+          totalReports: 0,
+          totalSites: 0,
+          todayUploads: 0,
+          approved: 0,
+          rejected: 0,
+          pending: 0,
+          queued: 0
+        }
+      }
+
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      
+      const todayUploads = reports.filter(report => {
+        if (!report.uploaded_at) return false
+        const uploadDate = new Date(report.uploaded_at)
+        uploadDate.setHours(0, 0, 0, 0)
+        return uploadDate.getTime() === today.getTime()
+      }).length
+
+      const statusCounts = {
+        approved: reports.filter(r => r.status === 'approved').length,
+        rejected: reports.filter(r => r.status === 'rejected').length,
+        pending: reports.filter(r => r.status === 'processing').length,
+        queued: reports.filter(r => r.status === 'queued').length
+      }
+
+      return {
+        totalReports: reports.length,
+        totalSites: assignedSites ? assignedSites.length : 0,
+        todayUploads,
+        ...statusCounts
+      }
+    } catch (error) {
+      console.error('Error calculating metrics:', error)
+      return {
+        totalReports: 0,
+        totalSites: 0,
+        todayUploads: 0,
+        approved: 0,
+        rejected: 0,
+        pending: 0,
+        queued: 0
+      }
+    }
+  }
+
+  const metrics = calculateMetrics()
+  
+  // Pagination calculations
+  const totalPages = Math.ceil(filteredReports.length / itemsPerPage)
+  const startIndex = (currentPage - 1) * itemsPerPage
+  const endIndex = startIndex + itemsPerPage
+  const paginatedReports = filteredReports.slice(startIndex, endIndex)
+
+  // Pagination handlers
+  const goToPage = (page) => {
+    setCurrentPage(Math.max(1, Math.min(page, totalPages)))
+  }
+
+  const goToNextPage = () => {
+    if (currentPage < totalPages) {
+      setCurrentPage(currentPage + 1)
+    }
+  }
+
+  const goToPreviousPage = () => {
+    if (currentPage > 1) {
+      setCurrentPage(currentPage - 1)
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -207,8 +313,17 @@ export default function ReportsTable() {
     )
   }
 
+  // Don't render if we don't have the necessary data yet
+  if (!reports || !Array.isArray(reports)) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="text-muted-foreground">Loading reports...</div>
+      </div>
+    )
+  }
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       {error && (
         <div className="flex items-start gap-2 rounded-xl border border-red-200/60 bg-red-50/80 text-red-800 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300 px-3 py-2">
           <AlertCircle className="mt-0.5 shrink-0" size={18} />
@@ -216,23 +331,117 @@ export default function ReportsTable() {
         </div>
       )}
 
+      {/* Metrics Table */}
+      <div className="bg-card/70 backdrop-blur-sm rounded-2xl border border-border overflow-hidden shadow-sm">
+        <div className="p-6 border-b border-border">
+          <div className="flex items-center gap-2 mb-4">
+            <BarChart3 className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+            <h2 className="text-xl font-semibold text-foreground">Dashboard Metrics</h2>
+          </div>
+          
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+            {/* Total Reports */}
+            <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 border border-blue-200 dark:border-blue-800">
+              <div className="flex items-center gap-2 mb-2">
+                <FileText className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                <span className="text-sm font-medium text-blue-700 dark:text-blue-300">Total Reports</span>
+              </div>
+              <div className="text-2xl font-bold text-blue-900 dark:text-blue-100">{metrics.totalReports}</div>
+            </div>
+
+            {/* Total Sites */}
+            <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-4 border border-green-200 dark:border-green-800">
+              <div className="flex items-center gap-2 mb-2">
+                <MapPin className="w-4 h-4 text-green-600 dark:text-green-400" />
+                <span className="text-sm font-medium text-green-700 dark:text-green-300">Assigned Sites</span>
+              </div>
+              <div className="text-2xl font-bold text-green-900 dark:text-green-100">{metrics.totalSites}</div>
+            </div>
+
+            {/* Today's Uploads */}
+            <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-4 border border-purple-200 dark:border-purple-800">
+              <div className="flex items-center gap-2 mb-2">
+                <Upload className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                <span className="text-sm font-medium text-purple-700 dark:text-purple-300">Today's Uploads</span>
+              </div>
+              <div className="text-2xl font-bold text-purple-900 dark:text-purple-100">{metrics.todayUploads}</div>
+            </div>
+
+            {/* Approved */}
+            <div className="bg-emerald-50 dark:bg-emerald-900/20 rounded-lg p-4 border border-emerald-200 dark:border-emerald-800">
+              <div className="flex items-center gap-2 mb-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                <span className="text-sm font-medium text-emerald-700 dark:text-emerald-300">Approved</span>
+              </div>
+              <div className="text-2xl font-bold text-emerald-900 dark:text-emerald-100">{metrics.approved}</div>
+            </div>
+
+            {/* Rejected */}
+            <div className="bg-red-50 dark:bg-red-900/20 rounded-lg p-4 border border-red-200 dark:border-red-800">
+              <div className="flex items-center gap-2 mb-2">
+                <XCircle className="w-4 h-4 text-red-600 dark:text-red-400" />
+                <span className="text-sm font-medium text-red-700 dark:text-red-300">Rejected</span>
+              </div>
+              <div className="text-2xl font-bold text-red-900 dark:text-red-100">{metrics.rejected}</div>
+            </div>
+
+            {/* Pending */}
+            <div className="bg-yellow-50 dark:bg-yellow-900/20 rounded-lg p-4 border border-yellow-200 dark:border-yellow-800">
+              <div className="flex items-center gap-2 mb-2">
+                <Clock3 className="w-4 h-4 text-yellow-600 dark:text-yellow-400" />
+                <span className="text-sm font-medium text-yellow-700 dark:text-yellow-300">Pending</span>
+              </div>
+              <div className="text-2xl font-bold text-yellow-900 dark:text-yellow-100">{metrics.pending}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Reports Table */}
       <div className="bg-card/70 backdrop-blur-sm rounded-2xl border border-border overflow-hidden shadow-sm">
         <div className="p-6 border-b border-border">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-semibold text-foreground">Reports for Review</h2>
-            <span className="text-sm text-muted-foreground">
-              {reports.filter(r => r.status === 'processing').length} pending
-            </span>
+            <div className="flex items-center gap-4">
+              {/* Site Filter Dropdown */}
+              <div className="flex items-center gap-2">
+                <Filter className="w-4 h-4 text-muted-foreground" />
+                <select
+                  value={selectedSiteId}
+                  onChange={(e) => setSelectedSiteId(e.target.value)}
+                  className="px-3 py-1.5 text-sm border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="all">All Sites</option>
+                  {assignedSites.map((site) => (
+                    <option key={site.id} value={site.id}>
+                      {site.display_name || site.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex items-center gap-4">
+                <span className="text-sm text-muted-foreground">
+                  {filteredReports.filter(r => r.status === 'processing').length} pending
+                </span>
+                <span className="text-sm text-muted-foreground">
+                  Page {currentPage} of {totalPages} ({filteredReports.length} total reports)
+                </span>
+              </div>
+            </div>
           </div>
         </div>
 
-        {reports.length === 0 ? (
+        {filteredReports.length === 0 ? (
           <div className="p-8 text-center text-muted-foreground">
-            No reports found for your assigned sites
+            {selectedSiteId === 'all' 
+              ? 'No reports found for your assigned sites'
+              : `No reports found for ${assignedSites.find(s => s.id === selectedSiteId)?.display_name || 'selected site'}`
+            }
           </div>
         ) : (
-          <div className="divide-y divide-border/50">
-            {reports.map((report) => {
+          <>
+            <div className="divide-y divide-border/50">
+              {paginatedReports.map((report) => {
               const domains = report.domains || []
               const domainStats = {
                 total: domains.length,
@@ -304,7 +513,55 @@ export default function ReportsTable() {
                 </div>
               )
             })}
-          </div>
+            </div>
+            
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+              <div className="p-6 border-t border-border bg-muted/20">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={goToPreviousPage}
+                      disabled={currentPage === 1}
+                      className="flex items-center gap-1 px-3 py-2 text-sm border border-border rounded-lg bg-background text-foreground hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                      Previous
+                    </button>
+                    
+                    <div className="flex items-center gap-1">
+                      {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                        <button
+                          key={page}
+                          onClick={() => goToPage(page)}
+                          className={`px-3 py-2 text-sm border rounded-lg transition-colors ${
+                            page === currentPage
+                              ? 'bg-blue-600 text-white border-blue-600'
+                              : 'border-border bg-background text-foreground hover:bg-muted'
+                          }`}
+                        >
+                          {page}
+                        </button>
+                      ))}
+                    </div>
+                    
+                    <button
+                      onClick={goToNextPage}
+                      disabled={currentPage === totalPages}
+                      className="flex items-center gap-1 px-3 py-2 text-sm border border-border rounded-lg bg-background text-foreground hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      Next
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                  </div>
+                  
+                  <div className="text-sm text-muted-foreground">
+                    Showing {startIndex + 1}-{Math.min(endIndex, filteredReports.length)} of {filteredReports.length} reports
+                  </div>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>
