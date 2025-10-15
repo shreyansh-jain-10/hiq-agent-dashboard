@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabaseClient'
-import { CheckCircle, XCircle, Clock, FileText, AlertCircle, Loader2, ArrowLeft, Moon, Sun, LogOut } from 'lucide-react'
+import { CheckCircle, XCircle, Clock, FileText, AlertCircle, Loader2, ArrowLeft, Moon, Sun, LogOut, ChevronDown, ChevronUp } from 'lucide-react'
 
 export default function ReportDetails() {
   const { reportId } = useParams()
@@ -16,6 +16,8 @@ export default function ReportDetails() {
   const [showRejectModal, setShowRejectModal] = useState(false)
   const [rejectReason, setRejectReason] = useState('')
   const [theme, setTheme] = useState('light')
+  const [showAgentsOutput, setShowAgentsOutput] = useState(false)
+  const [agentsViewMode, setAgentsViewMode] = useState('text') // 'text' or 'json'
 
   useEffect(() => {
     if (theme === 'dark') document.documentElement.classList.add('dark')
@@ -479,6 +481,96 @@ export default function ReportDetails() {
           </div>
         </div>
 
+        {/* Agents Output Section */}
+        {report.agents_output && (
+          <div className="bg-card/70 backdrop-blur-sm rounded-2xl border border-border overflow-hidden">
+            <div className="p-6 border-b border-border">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-foreground">
+                  Agents Output
+                </h3>
+                <button
+                  onClick={() => setShowAgentsOutput(!showAgentsOutput)}
+                  className="p-2 rounded-lg hover:bg-muted transition-colors"
+                  title={showAgentsOutput ? 'Hide Agents Output' : 'Show Agents Output'}
+                >
+                  {showAgentsOutput ? (
+                    <ChevronUp className="w-5 h-5 text-muted-foreground" />
+                  ) : (
+                    <ChevronDown className="w-5 h-5 text-muted-foreground" />
+                  )}
+                </button>
+              </div>
+            </div>
+            
+            {showAgentsOutput && (
+              <div className="p-6">
+                {/* Toggle for JSON/Text view */}
+                <div className="flex items-center gap-2 mb-4">
+                  <p className="text-sm font-medium text-foreground">View Mode:</p>
+                  <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-1">
+                    <button
+                      onClick={() => setAgentsViewMode('text')}
+                      className={`px-3 py-1 text-xs rounded-md transition-colors ${
+                        agentsViewMode === 'text'
+                          ? 'bg-background text-foreground shadow-sm'
+                          : 'text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      Text
+                    </button>
+                    <button
+                      onClick={() => setAgentsViewMode('json')}
+                      className={`px-3 py-1 text-xs rounded-md transition-colors ${
+                        agentsViewMode === 'json'
+                          ? 'bg-background text-foreground shadow-sm'
+                          : 'text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      JSON
+                    </button>
+                  </div>
+                </div>
+
+                {/* Agents Output Content */}
+                <div className="space-y-4">
+                  {agentsViewMode === 'text' && report.agents_output.plain_texts ? (
+                    Object.entries(report.agents_output.plain_texts).map(([agentName, content]) => (
+                      <div key={agentName} className="border border-border rounded-lg p-4">
+                        <h4 className="text-sm font-semibold text-foreground mb-2 capitalize">
+                          {agentName.replace(/_/g, ' ')}
+                        </h4>
+                        <div className="bg-muted/30 rounded-lg p-3">
+                          <p className="text-sm text-foreground whitespace-pre-wrap">
+                            {content}
+                          </p>
+                        </div>
+                      </div>
+                    ))
+                  ) : agentsViewMode === 'json' && report.agents_output.jsons ? (
+                    Object.entries(report.agents_output.jsons).map(([agentName, data]) => (
+                      <div key={agentName} className="border border-border rounded-lg p-4">
+                        <h4 className="text-sm font-semibold text-foreground mb-2 capitalize">
+                          {agentName.replace(/_/g, ' ')}
+                        </h4>
+                        <div className="bg-muted/30 rounded-lg p-3 overflow-x-auto">
+                          <pre className="text-xs text-foreground">
+                            {JSON.stringify(data, null, 2)}
+                          </pre>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-sm text-muted-foreground text-center py-4">
+                      No agents output available
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Action Buttons */}
         <div className="flex items-center gap-3">
           <button
@@ -576,6 +668,7 @@ export default function ReportDetails() {
 function DomainCard({ domain, onApprove, onReject, processing }) {
   const [showReject, setShowReject] = useState(false)
   const [reason, setReason] = useState('')
+  const [showJson, setShowJson] = useState(false)
 
   const handleReject = () => {
     onReject(domain.id, reason)
@@ -611,14 +704,53 @@ function DomainCard({ domain, onApprove, onReject, processing }) {
           
           {domain.domain_data && (
             <div className="mb-3">
-              <p className="text-sm text-muted-foreground mb-1">Domain Data:</p>
-              <pre className="text-xs bg-muted/30 p-3 rounded-lg overflow-x-auto">
-                {JSON.stringify(domain.domain_data, null, 2)}
-              </pre>
+              {/* Toggle for JSON/Text view */}
+              <div className="flex items-center gap-2 mb-3">
+                <p className="text-sm font-medium text-foreground">Domain Analysis:</p>
+                <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-1">
+                  <button
+                    onClick={() => setShowJson(false)}
+                    className={`px-3 py-1 text-xs rounded-md transition-colors ${
+                      !showJson 
+                        ? 'bg-background text-foreground shadow-sm' 
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    Text
+                  </button>
+                  <button
+                    onClick={() => setShowJson(true)}
+                    className={`px-3 py-1 text-xs rounded-md transition-colors ${
+                      showJson 
+                        ? 'bg-background text-foreground shadow-sm' 
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    JSON
+                  </button>
+                </div>
+              </div>
+
+              {/* Content based on toggle */}
+              {!showJson && domain.domain_data.domain_wise_texts && (
+                <div className="bg-muted/30 rounded-lg p-3">
+                  <p className="text-sm text-foreground whitespace-pre-wrap">
+                    {domain.domain_data.domain_wise_texts}
+                  </p>
+                </div>
+              )}
+
+              {showJson && domain.domain_data.domain_wise_jsons && (
+                <div className="bg-muted/30 rounded-lg p-3 overflow-x-auto">
+                  <pre className="text-xs text-foreground">
+                    {JSON.stringify(domain.domain_data.domain_wise_jsons, null, 2)}
+                  </pre>
+                </div>
+              )}
             </div>
           )}
 
-          {domain.rejection_reason && (
+          {domain.status === 'rejected' && domain.rejection_reason && (
             <div className="mb-3 p-3 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-900/50">
               <p className="text-sm font-medium text-red-800 dark:text-red-300">Rejection Reason:</p>
               <p className="text-sm text-red-700 dark:text-red-400 mt-1">{domain.rejection_reason}</p>
