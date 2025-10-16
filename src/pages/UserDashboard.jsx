@@ -3,6 +3,7 @@ import Sidebar from '@/components/Sidebar'
 import FileUpload from '@/components/FileUpload'
 import ResponseDisplay from '@/components/ResponseDisplay'
 import ReportsTable from '@/components/ReportsTable'
+import UserReportsTable from '@/components/UserReportsTable'
 import '@/App.css'
 import { Moon, Sun, LogOut, Bug } from 'lucide-react'
 import BugReport from '@/pages/BugReport'
@@ -123,6 +124,13 @@ function UserDashboard() {
             {isReviewer && (
               <div className="mt-8">
                 <ReportsTable />
+              </div>
+            )}
+
+            {/* User Reports Table - Show for regular users */}
+            {!isReviewer && (
+              <div className="mt-8">
+                <UserReportsTable />
               </div>
             )}
 

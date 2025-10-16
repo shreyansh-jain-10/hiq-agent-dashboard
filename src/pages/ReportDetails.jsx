@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabaseClient'
 import { CheckCircle, XCircle, Clock, FileText, AlertCircle, Loader2, ArrowLeft, Moon, Sun, LogOut, ChevronDown, ChevronUp } from 'lucide-react'
+import { useAuthSession } from '@/hooks/useAuthSession'
 
 export default function ReportDetails() {
   const { reportId } = useParams()
@@ -18,6 +19,8 @@ export default function ReportDetails() {
   const [theme, setTheme] = useState('light')
   const [showAgentsOutput, setShowAgentsOutput] = useState(false)
   const [agentsViewMode, setAgentsViewMode] = useState('text') // 'text' or 'json'
+  const { userRole } = useAuthSession()
+  const isReviewer = userRole === 'reviewer'
 
   useEffect(() => {
     if (theme === 'dark') document.documentElement.classList.add('dark')
@@ -390,7 +393,12 @@ export default function ReportDetails() {
             </button>
             <div>
               <h1 className="text-2xl font-semibold text-foreground">Report #{report.report_number}</h1>
-              <p className="text-sm text-muted-foreground">Review domains and approve/reject</p>
+              <p className="text-sm text-muted-foreground">
+                {isReviewer 
+                  ? 'Review domains and approve/reject' 
+                  : 'View report details and domain analysis'
+                }
+              </p>
             </div>
           </div>
 
@@ -571,29 +579,31 @@ export default function ReportDetails() {
           </div>
         )}
 
-        {/* Action Buttons */}
-        <div className="flex items-center gap-3">
-          <button
-            onClick={handleApproveAll}
-            disabled={processing === 'approve-all'}
-            className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-green-600 text-white hover:bg-green-700 disabled:opacity-60 transition-colors font-medium"
-          >
-            {processing === 'approve-all' ? (
-              <Loader2 className="w-5 h-5 animate-spin" />
-            ) : (
-              <CheckCircle className="w-5 h-5" />
-            )}
-            Approve All Domains
-          </button>
-          <button
-            onClick={() => setShowRejectModal(true)}
-            disabled={processing === 'reject-all'}
-            className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-60 transition-colors font-medium"
-          >
-            <XCircle className="w-5 h-5" />
-            Reject All Domains
-          </button>
-        </div>
+        {/* Action Buttons - Only show for reviewers */}
+        {isReviewer && (
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleApproveAll}
+              disabled={processing === 'approve-all'}
+              className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-green-600 text-white hover:bg-green-700 disabled:opacity-60 transition-colors font-medium"
+            >
+              {processing === 'approve-all' ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : (
+                <CheckCircle className="w-5 h-5" />
+              )}
+              Approve All Domains
+            </button>
+            <button
+              onClick={() => setShowRejectModal(true)}
+              disabled={processing === 'reject-all'}
+              className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-60 transition-colors font-medium"
+            >
+              <XCircle className="w-5 h-5" />
+              Reject All Domains
+            </button>
+          </div>
+        )}
 
         {/* Domains List */}
         <div className="bg-card/70 backdrop-blur-sm rounded-2xl border border-border overflow-hidden">
@@ -615,6 +625,7 @@ export default function ReportDetails() {
                   onApprove={handleApproveDomain}
                   onReject={handleRejectDomain}
                   processing={processing === `domain-${domain.id}`}
+                  isReviewer={isReviewer}
                 />
               ))}
             </div>
@@ -665,7 +676,7 @@ export default function ReportDetails() {
   )
 }
 
-function DomainCard({ domain, onApprove, onReject, processing }) {
+function DomainCard({ domain, onApprove, onReject, processing, isReviewer }) {
   const [showReject, setShowReject] = useState(false)
   const [reason, setReason] = useState('')
   const [showJson, setShowJson] = useState(false)
@@ -770,31 +781,35 @@ function DomainCard({ domain, onApprove, onReject, processing }) {
           )}
         </div>
         
-        <div className="flex items-start gap-2 ml-4">
-          <button
-            onClick={() => onApprove(domain.id)}
-            disabled={processing}
-            className="p-2 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/30 text-green-600 dark:text-green-400 transition-colors disabled:opacity-50"
-            title="Approve domain"
-          >
-            {processing ? (
-              <Loader2 className="w-5 h-5 animate-spin" />
-            ) : (
-              <CheckCircle className="w-5 h-5" />
-            )}
-          </button>
-          <button
-            onClick={() => setShowReject(!showReject)}
-            disabled={processing}
-            className="p-2 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 text-red-600 dark:text-red-400 transition-colors"
-            title="Reject domain"
-          >
-            <XCircle className="w-5 h-5" />
-          </button>
-        </div>
+        {/* Approve/Reject buttons - Only show for reviewers */}
+        {isReviewer && (
+          <div className="flex items-start gap-2 ml-4">
+            <button
+              onClick={() => onApprove(domain.id)}
+              disabled={processing}
+              className="p-2 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/30 text-green-600 dark:text-green-400 transition-colors disabled:opacity-50"
+              title="Approve domain"
+            >
+              {processing ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : (
+                <CheckCircle className="w-5 h-5" />
+              )}
+            </button>
+            <button
+              onClick={() => setShowReject(!showReject)}
+              disabled={processing}
+              className="p-2 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 text-red-600 dark:text-red-400 transition-colors"
+              title="Reject domain"
+            >
+              <XCircle className="w-5 h-5" />
+            </button>
+          </div>
+        )}
       </div>
 
-      {showReject && (
+      {/* Reject form - Only show for reviewers */}
+      {isReviewer && showReject && (
         <div className="mt-4 pt-4 border-t border-border/50 space-y-3">
           <div>
             <label className="text-sm font-medium text-foreground mb-1 block">
