@@ -136,10 +136,8 @@ export default function AdminDashboard() {
 
           {/* Users Table */}
           <UsersTable 
-            users={users}
             sites={sites}
             userSites={userSites}
-            loading={usersLoading}
             onUserEdit={handleUserEdit}
             onUserDelete={handleUserDelete}
             onUserSitesUpdate={handleUserSitesUpdate}

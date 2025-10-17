@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useState, useEffect, useCallback } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '@/lib/supabaseClient'
 import { CheckCircle, XCircle, Clock, FileText, AlertCircle, Loader2, ChevronRight, Filter, ChevronLeft, ChevronDown, BarChart3, MapPin, Upload, CheckCircle2, Clock3 } from 'lucide-react'
 
@@ -9,10 +9,164 @@ export default function ReportsTable() {
   const [error, setError] = useState(null)
   const [assignedSiteIds, setAssignedSiteIds] = useState([])
   const [assignedSites, setAssignedSites] = useState([])
-  const [selectedSiteId, setSelectedSiteId] = useState('all')
-  const [currentPage, setCurrentPage] = useState(1)
-  const itemsPerPage = 10
+  const [totalCount, setTotalCount] = useState(0)
+  const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
+  
+  // Get pagination and filter params from URL
+  const currentPage = parseInt(searchParams.get('page') || '1')
+  const selectedSiteId = searchParams.get('site') || 'all'
+  const itemsPerPage = 10
+
+  const initializeData = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+
+      const { data: userData } = await supabase
+        .from('users')
+        .select('id')
+        .eq('auth_user_id', user.id)
+        .single()
+      
+      if (userData) {
+        const { data: userSites } = await supabase
+          .from('user_sites')
+          .select(`
+            site_id,
+            sites!inner(id, name, display_name)
+          `)
+          .eq('user_id', userData.id)
+        
+        const siteIds = userSites?.map(s => s.site_id) || []
+        const sites = userSites?.map(s => s.sites) || []
+        
+        setAssignedSiteIds(siteIds)
+        setAssignedSites(sites)
+      }
+    } catch (err) {
+      console.error('Error getting user:', err)
+    }
+  }
+
+  const fetchReports = useCallback(async () => {
+    try {
+      setLoading(true)
+      
+      if (assignedSiteIds.length === 0) {
+        setReports([])
+        setTotalCount(0)
+        setLoading(false)
+        return
+      }
+
+      // Calculate offset for pagination
+      const offset = (currentPage - 1) * itemsPerPage
+
+      // Build the query
+      let query = supabase
+        .from('reports')
+        .select(`
+          *,
+          domains (id, domain_name, status),
+          uploaded_by_user:users!reports_uploaded_by_fkey(email),
+          reviewed_by_user:users!reports_reviewed_by_fkey(email),
+          site:sites(name, display_name)
+        `, { count: 'exact' })
+        .in('site_id', assignedSiteIds)
+        .order('uploaded_at', { ascending: false })
+        .range(offset, offset + itemsPerPage - 1)
+
+      // Apply site filter if not 'all'
+      if (selectedSiteId !== 'all') {
+        query = query.eq('site_id', selectedSiteId)
+      }
+
+      const { data, error, count } = await query
+      
+      if (error) throw error
+      console.log('📊 Fetched', data?.length || 0, 'reports (page', currentPage, 'of', Math.ceil((count || 0) / itemsPerPage), ')')
+      setReports(data || [])
+      setTotalCount(count || 0)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }, [assignedSiteIds, currentPage, selectedSiteId, itemsPerPage])
+
+  const fetchMetrics = useCallback(async () => {
+    try {
+      if (assignedSiteIds.length === 0) {
+        setMetrics({
+          totalReports: 0,
+          totalSites: 0,
+          todayUploads: 0,
+          approved: 0,
+          rejected: 0,
+          pending: 0,
+          queued: 0
+        })
+        return
+      }
+
+      // Get total count for all assigned sites
+      const { count: totalReports } = await supabase
+        .from('reports')
+        .select('*', { count: 'exact', head: true })
+        .in('site_id', assignedSiteIds)
+
+      // Get today's uploads
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      const tomorrow = new Date(today)
+      tomorrow.setDate(tomorrow.getDate() + 1)
+
+      const { count: todayUploads } = await supabase
+        .from('reports')
+        .select('*', { count: 'exact', head: true })
+        .in('site_id', assignedSiteIds)
+        .gte('uploaded_at', today.toISOString())
+        .lt('uploaded_at', tomorrow.toISOString())
+
+      // Get status counts
+      const { count: approved } = await supabase
+        .from('reports')
+        .select('*', { count: 'exact', head: true })
+        .in('site_id', assignedSiteIds)
+        .eq('status', 'approved')
+
+      const { count: rejected } = await supabase
+        .from('reports')
+        .select('*', { count: 'exact', head: true })
+        .in('site_id', assignedSiteIds)
+        .eq('status', 'rejected')
+
+      const { count: pending } = await supabase
+        .from('reports')
+        .select('*', { count: 'exact', head: true })
+        .in('site_id', assignedSiteIds)
+        .eq('status', 'processing')
+
+      const { count: queued } = await supabase
+        .from('reports')
+        .select('*', { count: 'exact', head: true })
+        .in('site_id', assignedSiteIds)
+        .eq('status', 'queued')
+
+      setMetrics({
+        totalReports: totalReports || 0,
+        totalSites: assignedSites ? assignedSites.length : 0,
+        todayUploads: todayUploads || 0,
+        approved: approved || 0,
+        rejected: rejected || 0,
+        pending: pending || 0,
+        queued: queued || 0
+      })
+    } catch (error) {
+      console.error('Error calculating metrics:', error)
+    }
+  }, [assignedSiteIds, assignedSites])
 
   useEffect(() => {
     initializeData()
@@ -22,12 +176,7 @@ export default function ReportsTable() {
     if (assignedSiteIds.length > 0) {
       fetchReports()
     }
-  }, [assignedSiteIds])
-
-  // Reset pagination when filter changes
-  useEffect(() => {
-    setCurrentPage(1)
-  }, [selectedSiteId])
+  }, [assignedSiteIds, fetchReports])
 
   useEffect(() => {
     if (assignedSiteIds.length === 0) return
@@ -47,12 +196,34 @@ export default function ReportsTable() {
           console.log('📥 Report change:', payload.eventType, payload.new || payload.old)
           
           if (payload.eventType === 'INSERT') {
-            // Refetch to get full report with relations
-            fetchReports()
+            // Check if the new report should be visible on current page
+            const isVisible = assignedSiteIds.includes(payload.new.site_id) && 
+              (selectedSiteId === 'all' || payload.new.site_id === selectedSiteId)
+            
+            if (isVisible) {
+              // Refetch current page to maintain pagination
+              fetchReports()
+              // Also update metrics
+              fetchMetrics()
+            }
           } else if (payload.eventType === 'UPDATE') {
-            fetchReportById(payload.new.id)
+            // Check if the updated report is on current page
+            const isOnCurrentPage = reports.some(r => r.id === payload.new.id)
+            if (isOnCurrentPage) {
+              fetchReportById(payload.new.id)
+            }
+            // Update metrics as status might have changed
+            fetchMetrics()
           } else if (payload.eventType === 'DELETE') {
-            setReports(prev => prev.filter(report => report.id !== payload.old.id))
+            // Check if the deleted report was on current page
+            const isOnCurrentPage = reports.some(r => r.id === payload.old.id)
+            if (isOnCurrentPage) {
+              setReports(prev => prev.filter(report => report.id !== payload.old.id))
+              // Refetch to maintain pagination
+              fetchReports()
+            }
+            // Update metrics
+            fetchMetrics()
           }
         }
       )
@@ -98,70 +269,9 @@ export default function ReportsTable() {
       console.log('🧹 Cleaning up reports list subscription')
       supabase.removeChannel(channel)
     }
-  }, [assignedSiteIds])
+  }, [assignedSiteIds, fetchReports, fetchMetrics])
 
-  const initializeData = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
 
-      const { data: userData } = await supabase
-        .from('users')
-        .select('id')
-        .eq('auth_user_id', user.id)
-        .single()
-      
-      if (userData) {
-        const { data: userSites } = await supabase
-          .from('user_sites')
-          .select(`
-            site_id,
-            sites!inner(id, name, display_name)
-          `)
-          .eq('user_id', userData.id)
-        
-        const siteIds = userSites?.map(s => s.site_id) || []
-        const sites = userSites?.map(s => s.sites) || []
-        
-        setAssignedSiteIds(siteIds)
-        setAssignedSites(sites)
-      }
-    } catch (err) {
-      console.error('Error getting user:', err)
-    }
-  }
-
-  const fetchReports = async () => {
-    try {
-      setLoading(true)
-      
-      if (assignedSiteIds.length === 0) {
-        setReports([])
-        setLoading(false)
-        return
-      }
-
-      const { data, error } = await supabase
-        .from('reports')
-        .select(`
-          *,
-          domains (id, domain_name, status),
-          uploaded_by_user:users!reports_uploaded_by_fkey(email),
-          reviewed_by_user:users!reports_reviewed_by_fkey(email),
-          site:sites(name, display_name)
-        `)
-        .in('site_id', assignedSiteIds)
-        .order('uploaded_at', { ascending: false })
-      
-      if (error) throw error
-      console.log('📊 Fetched', data?.length || 0, 'reports')
-      setReports(data || [])
-    } catch (err) {
-      setError(err.message)
-    } finally {
-      setLoading(false)
-    }
-  }
 
   const fetchReportById = async (id) => {
     try {
@@ -215,93 +325,62 @@ export default function ReportsTable() {
     navigate(`/app/report/${reportId}`)
   }
 
-  // Client-side filtering function
-  const getFilteredReports = () => {
-    if (!reports || !Array.isArray(reports)) {
-      return []
-    }
-    if (selectedSiteId === 'all') {
-      return reports
-    }
-    return reports.filter(report => report.site_id === selectedSiteId)
+  // URL parameter handlers
+  const updatePage = (page) => {
+    const newSearchParams = new URLSearchParams(searchParams)
+    newSearchParams.set('page', page.toString())
+    setSearchParams(newSearchParams)
   }
 
-  const filteredReports = getFilteredReports()
-  
-  // Metrics calculations
-  const calculateMetrics = () => {
-    try {
-      if (!reports || !Array.isArray(reports)) {
-        return {
-          totalReports: 0,
-          totalSites: 0,
-          todayUploads: 0,
-          approved: 0,
-          rejected: 0,
-          pending: 0,
-          queued: 0
-        }
-      }
-
-      const today = new Date()
-      today.setHours(0, 0, 0, 0)
-      
-      const todayUploads = reports.filter(report => {
-        if (!report.uploaded_at) return false
-        const uploadDate = new Date(report.uploaded_at)
-        uploadDate.setHours(0, 0, 0, 0)
-        return uploadDate.getTime() === today.getTime()
-      }).length
-
-      const statusCounts = {
-        approved: reports.filter(r => r.status === 'approved').length,
-        rejected: reports.filter(r => r.status === 'rejected').length,
-        pending: reports.filter(r => r.status === 'processing').length,
-        queued: reports.filter(r => r.status === 'queued').length
-      }
-
-      return {
-        totalReports: reports.length,
-        totalSites: assignedSites ? assignedSites.length : 0,
-        todayUploads,
-        ...statusCounts
-      }
-    } catch (error) {
-      console.error('Error calculating metrics:', error)
-      return {
-        totalReports: 0,
-        totalSites: 0,
-        todayUploads: 0,
-        approved: 0,
-        rejected: 0,
-        pending: 0,
-        queued: 0
-      }
+  const updateSiteFilter = (siteId) => {
+    const newSearchParams = new URLSearchParams(searchParams)
+    if (siteId === 'all') {
+      newSearchParams.delete('site')
+    } else {
+      newSearchParams.set('site', siteId)
     }
+    newSearchParams.set('page', '1') // Reset to first page when filter changes
+    setSearchParams(newSearchParams)
   }
-
-  const metrics = calculateMetrics()
   
+  // Metrics calculations - we'll need to fetch these separately for accurate counts
+  const [metrics, setMetrics] = useState({
+    totalReports: 0,
+    totalSites: 0,
+    todayUploads: 0,
+    approved: 0,
+    rejected: 0,
+    pending: 0,
+    queued: 0
+  })
+
+
+  // Fetch metrics when assigned sites change
+  useEffect(() => {
+    if (assignedSiteIds.length > 0) {
+      fetchMetrics()
+    }
+  }, [assignedSiteIds, assignedSites])
+
   // Pagination calculations
-  const totalPages = Math.ceil(filteredReports.length / itemsPerPage)
+  const totalPages = Math.ceil(totalCount / itemsPerPage)
   const startIndex = (currentPage - 1) * itemsPerPage
-  const endIndex = startIndex + itemsPerPage
-  const paginatedReports = filteredReports.slice(startIndex, endIndex)
+  const endIndex = Math.min(startIndex + itemsPerPage, totalCount)
 
   // Pagination handlers
   const goToPage = (page) => {
-    setCurrentPage(Math.max(1, Math.min(page, totalPages)))
+    updatePage(Math.max(1, Math.min(page, totalPages)))
   }
 
   const goToNextPage = () => {
     if (currentPage < totalPages) {
-      setCurrentPage(currentPage + 1)
+      updatePage(currentPage + 1)
     }
   }
 
   const goToPreviousPage = () => {
     if (currentPage > 1) {
-      setCurrentPage(currentPage - 1)
+      updatePage(currentPage - 1)
     }
   }
 
@@ -408,7 +487,7 @@ export default function ReportsTable() {
                 <Filter className="w-4 h-4 text-muted-foreground" />
                 <select
                   value={selectedSiteId}
-                  onChange={(e) => setSelectedSiteId(e.target.value)}
+                  onChange={(e) => updateSiteFilter(e.target.value)}
                   className="px-3 py-1.5 text-sm border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 >
                   <option value="all">All Sites</option>
@@ -421,17 +500,17 @@ export default function ReportsTable() {
               </div>
               <div className="flex items-center gap-4">
                 <span className="text-sm text-muted-foreground">
-                  {filteredReports.filter(r => r.status === 'processing').length} pending
+                  {metrics.pending} pending
                 </span>
                 <span className="text-sm text-muted-foreground">
-                  Page {currentPage} of {totalPages} ({filteredReports.length} total reports)
+                  Page {currentPage} of {totalPages} ({totalCount} total reports)
                 </span>
               </div>
             </div>
           </div>
         </div>
 
-        {filteredReports.length === 0 ? (
+        {reports.length === 0 ? (
           <div className="p-8 text-center text-muted-foreground">
             {selectedSiteId === 'all' 
               ? 'No reports found for your assigned sites'
@@ -441,7 +520,7 @@ export default function ReportsTable() {
         ) : (
           <>
             <div className="divide-y divide-border/50">
-              {paginatedReports.map((report) => {
+              {reports.map((report) => {
               const domains = report.domains || []
               const domainStats = {
                 total: domains.length,
@@ -556,7 +635,7 @@ export default function ReportsTable() {
                   </div>
                   
                   <div className="text-sm text-muted-foreground">
-                    Showing {startIndex + 1}-{Math.min(endIndex, filteredReports.length)} of {filteredReports.length} reports
+                    Showing {startIndex + 1}-{endIndex} of {totalCount} reports
                   </div>
                 </div>
               </div>

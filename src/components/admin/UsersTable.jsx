@@ -1,21 +1,116 @@
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Mail, Shield, Users, MapPin, Edit, Trash2, Loader2, ChevronLeft, ChevronRight, X } from 'lucide-react'
 import { getUserRole, getIsAdmin, getInitial } from '@/utils/userUtils'
 import { getUserSites, getSiteName } from '@/utils/siteUtils'
 import { supabase } from '@/lib/supabaseClient'
 
 export default function UsersTable({ 
-  users, 
   sites, 
   userSites, 
-  loading, 
   onUserEdit, 
   onUserDelete, 
   onUserSitesUpdate 
 }) {
-  const [currentPage, setCurrentPage] = useState(1)
+  const [users, setUsers] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+  const [totalCount, setTotalCount] = useState(0)
   const [deleting, setDeleting] = useState(false)
+  const [searchParams, setSearchParams] = useSearchParams()
   const itemsPerPage = 5
+  
+  // Get pagination params from URL
+  const currentPage = parseInt(searchParams.get('page') || '1')
+
+  // Fetch users with pagination
+  const fetchUsers = useCallback(async () => {
+    try {
+      setLoading(true)
+      
+      // Calculate offset for pagination
+      const offset = (currentPage - 1) * itemsPerPage
+
+      const { data, error, count } = await supabase
+        .from('users')
+        .select('*', { count: 'exact' })
+        .order('created_at', { ascending: false })
+        .range(offset, offset + itemsPerPage - 1)
+      
+      if (error) throw error
+      console.log('📊 Fetched', data?.length || 0, 'users (page', currentPage, 'of', Math.ceil((count || 0) / itemsPerPage), ')')
+      setUsers(data || [])
+      setTotalCount(count || 0)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }, [currentPage, itemsPerPage])
+
+  // Fetch users when page changes
+  useEffect(() => {
+    fetchUsers()
+  }, [fetchUsers])
+
+  // Set up real-time subscription
+  useEffect(() => {
+    console.log('⚡ Setting up real-time for users list')
+    
+    const channel = supabase
+      .channel('users_list_realtime', {
+        config: {
+          broadcast: { self: true }
+        }
+      })
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'users' },
+        (payload) => {
+          console.log('📥 User change:', payload.eventType, payload.new || payload.old)
+          
+          if (payload.eventType === 'INSERT') {
+            // Refetch current page to maintain pagination
+            fetchUsers()
+          } else if (payload.eventType === 'UPDATE') {
+            // Check if the updated user is on current page
+            const isOnCurrentPage = users.some(u => u.id === payload.new.id)
+            if (isOnCurrentPage) {
+              setUsers(prev => prev.map(u => u.id === payload.new.id ? payload.new : u))
+            } else {
+              // Refetch to see if it should appear on current page
+              fetchUsers()
+            }
+          } else if (payload.eventType === 'DELETE') {
+            // Check if the deleted user was on current page
+            const isOnCurrentPage = users.some(u => u.id === payload.old.id)
+            if (isOnCurrentPage) {
+              setUsers(prev => prev.filter(u => u.id !== payload.old.id))
+              // Refetch to maintain pagination
+              fetchUsers()
+            }
+          }
+        }
+      )
+      .subscribe((status, err) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('✅ Successfully subscribed to users list realtime')
+        } else if (status === 'CHANNEL_ERROR') {
+          console.error('❌ Realtime subscription error:', err)
+        } else if (status === 'TIMED_OUT') {
+          console.error('⏱️ Realtime subscription timed out')
+        } else if (status === 'CLOSED') {
+          console.log('🔌 Realtime connection closed')
+        } else {
+          console.log('📡 Subscription status:', status)
+        }
+      })
+    
+    return () => {
+      console.log('🧹 Cleaning up users list subscription')
+      supabase.removeChannel(channel)
+    }
+  }, [fetchUsers])
 
   const handleRemoveSiteAssignment = async (userId, siteId) => {
     try {
@@ -45,24 +140,30 @@ export default function UsersTable({
   }
 
   // Pagination calculations
-  const totalPages = Math.ceil(users.length / itemsPerPage)
+  const totalPages = Math.ceil(totalCount / itemsPerPage)
   const startIndex = (currentPage - 1) * itemsPerPage
-  const endIndex = startIndex + itemsPerPage
-  const paginatedUsers = users.slice(startIndex, endIndex)
+  const endIndex = Math.min(startIndex + itemsPerPage, totalCount)
+
+  // URL parameter handlers
+  const updatePage = (page) => {
+    const newSearchParams = new URLSearchParams(searchParams)
+    newSearchParams.set('page', page.toString())
+    setSearchParams(newSearchParams)
+  }
 
   const handlePageChange = (page) => {
-    setCurrentPage(page)
+    updatePage(page)
   }
 
   const handlePreviousPage = () => {
     if (currentPage > 1) {
-      setCurrentPage(currentPage - 1)
+      updatePage(currentPage - 1)
     }
   }
 
   const handleNextPage = () => {
     if (currentPage < totalPages) {
-      setCurrentPage(currentPage + 1)
+      updatePage(currentPage + 1)
     }
   }
 
@@ -104,6 +205,19 @@ export default function UsersTable({
     )
   }
 
+  if (error) {
+    return (
+      <div className="bg-card/70 backdrop-blur-sm rounded-2xl border border-border overflow-hidden shadow-sm">
+        <div className="p-6 border-b border-border">
+          <h2 className="text-xl font-semibold text-foreground">All Users</h2>
+        </div>
+        <div className="p-8 text-center text-red-600">
+          Error loading users: {error}
+        </div>
+      </div>
+    )
+  }
+
   if (users.length === 0) {
     return (
       <div className="bg-card/70 backdrop-blur-sm rounded-2xl border border-border overflow-hidden shadow-sm">
@@ -136,7 +250,7 @@ export default function UsersTable({
             </tr>
           </thead>
           <tbody className="divide-y divide-border/50">
-            {paginatedUsers.map((user) => (
+            {users.map((user) => (
               <tr key={user.id} className="hover:bg-muted/30 transition">
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="flex items-center gap-2">
@@ -245,7 +359,7 @@ export default function UsersTable({
             </div>
             
             <div className="text-sm text-muted-foreground">
-              Showing {startIndex + 1}-{Math.min(endIndex, users.length)} of {users.length} users
+              Showing {startIndex + 1}-{endIndex} of {totalCount} users
             </div>
           </div>
         </div>

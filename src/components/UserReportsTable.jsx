@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useState, useEffect, useCallback } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '@/lib/supabaseClient'
 import { CheckCircle, XCircle, Clock, FileText, AlertCircle, Loader2, ChevronRight, Filter, ChevronLeft } from 'lucide-react'
 
@@ -8,9 +8,70 @@ export default function UserReportsTable() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [currentUserId, setCurrentUserId] = useState(null)
-  const [currentPage, setCurrentPage] = useState(1)
-  const itemsPerPage = 10
+  const [totalCount, setTotalCount] = useState(0)
+  const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
+  
+  // Get pagination params from URL
+  const currentPage = parseInt(searchParams.get('page') || '1')
+  const itemsPerPage = 10
+
+  const initializeData = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+
+      const { data: userData } = await supabase
+        .from('users')
+        .select('id')
+        .eq('auth_user_id', user.id)
+        .single()
+      
+      if (userData) {
+        setCurrentUserId(userData.id)
+      }
+    } catch (err) {
+      console.error('Error getting user:', err)
+    }
+  }
+
+  const fetchReports = useCallback(async () => {
+    try {
+      setLoading(true)
+      
+      if (!currentUserId) {
+        setReports([])
+        setTotalCount(0)
+        setLoading(false)
+        return
+      }
+
+      // Calculate offset for pagination
+      const offset = (currentPage - 1) * itemsPerPage
+
+      const { data, error, count } = await supabase
+        .from('reports')
+        .select(`
+          *,
+          domains (id, domain_name, status),
+          uploaded_by_user:users!reports_uploaded_by_fkey(email),
+          reviewed_by_user:users!reports_reviewed_by_fkey(email),
+          site:sites(name, display_name)
+        `, { count: 'exact' })
+        .eq('uploaded_by', currentUserId)
+        .order('uploaded_at', { ascending: false })
+        .range(offset, offset + itemsPerPage - 1)
+      
+      if (error) throw error
+      console.log('📊 Fetched', data?.length || 0, 'user reports (page', currentPage, 'of', Math.ceil((count || 0) / itemsPerPage), ')')
+      setReports(data || [])
+      setTotalCount(count || 0)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }, [currentUserId, currentPage, itemsPerPage])
 
   useEffect(() => {
     initializeData()
@@ -20,7 +81,7 @@ export default function UserReportsTable() {
     if (currentUserId) {
       fetchReports()
     }
-  }, [currentUserId])
+  }, [currentUserId, fetchReports])
 
   useEffect(() => {
     if (!currentUserId) return
@@ -42,16 +103,29 @@ export default function UserReportsTable() {
           if (payload.eventType === 'INSERT') {
             // Only add if uploaded by current user
             if (payload.new.uploaded_by === currentUserId) {
-              // Refetch to get full report with relations
+              // Refetch current page to maintain pagination
               fetchReports()
             }
           } else if (payload.eventType === 'UPDATE') {
             // Only update if it's a report uploaded by current user
             if (payload.new.uploaded_by === currentUserId) {
-              fetchReportById(payload.new.id)
+              // Check if the updated report is on current page
+              const isOnCurrentPage = reports.some(r => r.id === payload.new.id)
+              if (isOnCurrentPage) {
+                fetchReportById(payload.new.id)
+              } else {
+                // Refetch to see if it should appear on current page
+                fetchReports()
+              }
             }
           } else if (payload.eventType === 'DELETE') {
-            setReports(prev => prev.filter(report => report.id !== payload.old.id))
+            // Check if the deleted report was on current page
+            const isOnCurrentPage = reports.some(r => r.id === payload.old.id)
+            if (isOnCurrentPage) {
+              setReports(prev => prev.filter(report => report.id !== payload.old.id))
+              // Refetch to maintain pagination
+              fetchReports()
+            }
           }
         }
       )
@@ -97,58 +171,7 @@ export default function UserReportsTable() {
       console.log('🧹 Cleaning up user reports list subscription')
       supabase.removeChannel(channel)
     }
-  }, [currentUserId])
-
-  const initializeData = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
-
-      const { data: userData } = await supabase
-        .from('users')
-        .select('id')
-        .eq('auth_user_id', user.id)
-        .single()
-      
-      if (userData) {
-        setCurrentUserId(userData.id)
-      }
-    } catch (err) {
-      console.error('Error getting user:', err)
-    }
-  }
-
-  const fetchReports = async () => {
-    try {
-      setLoading(true)
-      
-      if (!currentUserId) {
-        setReports([])
-        setLoading(false)
-        return
-      }
-
-      const { data, error } = await supabase
-        .from('reports')
-        .select(`
-          *,
-          domains (id, domain_name, status),
-          uploaded_by_user:users!reports_uploaded_by_fkey(email),
-          reviewed_by_user:users!reports_reviewed_by_fkey(email),
-          site:sites(name, display_name)
-        `)
-        .eq('uploaded_by', currentUserId)
-        .order('uploaded_at', { ascending: false })
-      
-      if (error) throw error
-      console.log('📊 Fetched', data?.length || 0, 'user reports')
-      setReports(data || [])
-    } catch (err) {
-      setError(err.message)
-    } finally {
-      setLoading(false)
-    }
-  }
+  }, [currentUserId, fetchReports])
 
   const fetchReportById = async (id) => {
     try {
@@ -203,26 +226,32 @@ export default function UserReportsTable() {
     navigate(`/app/report/${reportId}`)
   }
 
+  // URL parameter handlers
+  const updatePage = (page) => {
+    const newSearchParams = new URLSearchParams(searchParams)
+    newSearchParams.set('page', page.toString())
+    setSearchParams(newSearchParams)
+  }
+
   // Pagination calculations
-  const totalPages = Math.ceil(reports.length / itemsPerPage)
+  const totalPages = Math.ceil(totalCount / itemsPerPage)
   const startIndex = (currentPage - 1) * itemsPerPage
-  const endIndex = startIndex + itemsPerPage
-  const paginatedReports = reports.slice(startIndex, endIndex)
+  const endIndex = Math.min(startIndex + itemsPerPage, totalCount)
 
   // Pagination handlers
   const goToPage = (page) => {
-    setCurrentPage(Math.max(1, Math.min(page, totalPages)))
+    updatePage(Math.max(1, Math.min(page, totalPages)))
   }
 
   const goToNextPage = () => {
     if (currentPage < totalPages) {
-      setCurrentPage(currentPage + 1)
+      updatePage(currentPage + 1)
     }
   }
 
   const goToPreviousPage = () => {
     if (currentPage > 1) {
-      setCurrentPage(currentPage - 1)
+      updatePage(currentPage - 1)
     }
   }
 
@@ -263,7 +292,7 @@ export default function UserReportsTable() {
                   {reports.filter(r => r.status === 'processing').length} pending
                 </span>
                 <span className="text-sm text-muted-foreground">
-                  Page {currentPage} of {totalPages} ({reports.length} total reports)
+                  Page {currentPage} of {totalPages} ({totalCount} total reports)
                 </span>
               </div>
             </div>
@@ -277,7 +306,7 @@ export default function UserReportsTable() {
         ) : (
           <>
             <div className="divide-y divide-border/50">
-              {paginatedReports.map((report) => {
+              {reports.map((report) => {
               const domains = report.domains || []
               const domainStats = {
                 total: domains.length,
@@ -392,7 +421,7 @@ export default function UserReportsTable() {
                   </div>
                   
                   <div className="text-sm text-muted-foreground">
-                    Showing {startIndex + 1}-{Math.min(endIndex, reports.length)} of {reports.length} reports
+                    Showing {startIndex + 1}-{endIndex} of {totalCount} reports
                   </div>
                 </div>
               </div>
